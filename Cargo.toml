@@ -1,0 +1,9 @@
+[package]
+name = "movement_tracks_analyzer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4"
+regex = "1.12"
+unicode-width = "0.2"
