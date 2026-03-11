@@ -199,3 +199,8 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,windows,macos,linux,jetbrains+all,visualstudiocode
+
+### Custom
+
+# KML / KMZ files
+*.km[lz]

@@ -1,9 +1,11 @@
 [package]
 name = "movement_tracks_analyzer"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 chrono = "0.4"
+once_cell = "1.21"
+quick-xml = { version = "0.39", features = ["serialize"] }
 regex = "1.12"
 unicode-width = "0.2"
