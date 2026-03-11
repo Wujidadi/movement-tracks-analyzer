@@ -90,7 +90,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **職責**：自訂錯誤類型定義
 - **內容**：
     - `AnalyzerError` 枚舉 - 6 種錯誤類型
-    - `Display` trait 實現 - 用戶友好的錯誤消息
+    - `Display` trait 實現 - 用戶友好的錯誤訊息
     - `Error` trait 實現 - 標準錯誤接口
     - `From` implementations - 自動錯誤轉換
     - `Result<T>` 型態別名 - 便捷的 Result 類型

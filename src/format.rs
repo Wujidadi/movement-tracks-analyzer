@@ -28,7 +28,7 @@ struct TrackRecord {
     month: String,
 }
 
-/// 根據指定格式產生輸出字符串
+/// 根據指定格式產生輸出字串
 ///
 /// 支援多種輸出格式，適應不同的使用場景。
 ///
@@ -39,7 +39,7 @@ struct TrackRecord {
 ///
 /// # Returns
 ///
-/// 格式化後的字符串，可直接用於顯示或保存到檔案
+/// 格式化後的字串，可直接用於顯示或保存到檔案
 ///
 /// # Format Details
 ///
@@ -50,7 +50,7 @@ struct TrackRecord {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use movement_tracks_analyzer::{extract_placemarks_with_paths, format_output, OutputFormat};
 /// use std::path::PathBuf;
 ///

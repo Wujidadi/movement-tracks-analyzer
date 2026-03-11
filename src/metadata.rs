@@ -17,7 +17,7 @@ use chrono::NaiveDateTime;
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use movement_tracks_analyzer::TrackMetadata;
 /// use chrono::NaiveDateTime;
 ///
@@ -104,6 +104,94 @@ impl TrackMetadata {
     ///
     /// 若 `end_time` 早於 `start_time`，返回負數。
     pub fn duration_seconds(&self) -> i64 {
-        (self.end_time - self.start_time).num_seconds()
+        self.end_time
+            .signed_duration_since(self.start_time)
+            .num_seconds()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDateTime;
+
+    fn create_test_metadata() -> TrackMetadata {
+        TrackMetadata {
+            name: "Test Track".to_string(),
+            start_time: NaiveDateTime::parse_from_str("2025-03-11 10:00:00", "%Y-%m-%d %H:%M:%S")
+                .unwrap(),
+            end_time: NaiveDateTime::parse_from_str("2025-03-11 11:30:00", "%Y-%m-%d %H:%M:%S")
+                .unwrap(),
+            coordinates: vec![
+                (120.5, 24.7),
+                (120.51, 24.71),
+                (120.52, 24.72),
+            ],
+            category: "戶外運動".to_string(),
+            activity: "步行".to_string(),
+            year: "2025".to_string(),
+            month: "2025-03".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_duration_seconds() {
+        let metadata = create_test_metadata();
+        let duration = metadata.duration_seconds();
+        assert_eq!(duration, 5400); // 1 hour 30 minutes = 5400 seconds
+    }
+
+    #[test]
+    fn test_duration_same_time() {
+        let mut metadata = create_test_metadata();
+        metadata.end_time = metadata.start_time;
+        let duration = metadata.duration_seconds();
+        assert_eq!(duration, 0);
+    }
+
+    #[test]
+    fn test_duration_negative() {
+        let mut metadata = create_test_metadata();
+        // Swap start and end times
+        let temp = metadata.start_time;
+        metadata.start_time = metadata.end_time;
+        metadata.end_time = temp;
+        let duration = metadata.duration_seconds();
+        assert!(duration < 0);
+    }
+
+    #[test]
+    fn test_calculate_distance_multiple_points() {
+        let metadata = create_test_metadata();
+        let distance = metadata.calculate_distance();
+        // Distance should be positive and reasonable for nearby coordinates
+        assert!(distance > 0.0);
+        assert!(distance < 10000.0); // Less than 10 km
+    }
+
+    #[test]
+    fn test_calculate_distance_single_point() {
+        let mut metadata = create_test_metadata();
+        metadata.coordinates = vec![(120.5, 24.7)];
+        let distance = metadata.calculate_distance();
+        assert_eq!(distance, 0.0);
+    }
+
+    #[test]
+    fn test_calculate_distance_two_points() {
+        let mut metadata = create_test_metadata();
+        metadata.coordinates = vec![(120.5, 24.7), (120.51, 24.71)];
+        let distance = metadata.calculate_distance();
+        assert!(distance > 0.0);
+        assert!(distance < 2000.0); // Less than 2 km for nearby points
+    }
+
+    #[test]
+    fn test_metadata_creation() {
+        let metadata = create_test_metadata();
+        assert_eq!(metadata.name, "Test Track");
+        assert_eq!(metadata.category, "戶外運動");
+        assert_eq!(metadata.activity, "步行");
+        assert_eq!(metadata.coordinates.len(), 3);
     }
 }

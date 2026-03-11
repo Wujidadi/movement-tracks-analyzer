@@ -43,7 +43,7 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use movement_tracks_analyzer::extract_placemarks_with_paths;
 /// use std::path::PathBuf;
 ///

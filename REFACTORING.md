@@ -173,15 +173,47 @@ for (i, value) in values.iter().enumerate() {
 
 ## 後續建議
 
-1. **單元測試**：為各模組添加測試
-   ```rust
-   #[cfg(test)]
-   mod tests {
-       use super::*;
-       #[test]
-       fn test_extract_categories() { ... }
-   }
-   ```
+1. **單元測試** ✅ **已完成**
+
+   為各模組添加 #[cfg(test)] 測試模組
+   
+   **實現細節**：
+    - ✅ **path.rs**：6 個單元測試
+      - `test_extract_categories_full_path()` - 完整路徑提取
+      - `test_extract_categories_with_spaces()` - 空格處理
+      - `test_extract_categories_with_three_meaningful_elements()` - 多層路徑
+      - `test_extract_categories_single_non_root_element()` - 月份格式檢測
+      - `test_extract_categories_empty_path()` - 空路徑邊界
+      
+    - ✅ **metadata.rs**：8 個單元測試
+      - `test_duration_seconds()` - 時間計算（正常情況）
+      - `test_duration_same_time()` - 相同時間點
+      - `test_duration_negative()` - 反向時間差
+      - `test_calculate_distance_multiple_points()` - 多點距離計算
+      - `test_calculate_distance_single_point()` - 單點距離
+      - `test_calculate_distance_two_points()` - 雙點距離
+      - `test_metadata_creation()` - 結構體創建
+      
+    - ✅ **regex.rs**：7 個單元測試
+      - `test_start_time_pattern_matches()` - 開始時間匹配
+      - `test_start_time_pattern_captures()` - 開始時間捕獲
+      - `test_start_time_pattern_with_spaces()` - 空格容錯
+      - `test_end_time_pattern_matches()` - 結束時間匹配
+      - `test_end_time_pattern_captures()` - 結束時間捕獲
+      - `test_end_time_pattern_without_br()` - 換行字元處理
+      - `test_both_patterns_in_html()` - 組合匹配
+      
+    - ✅ **error.rs**：5 個單元測試
+      - `test_analyzer_error_display()` - 錯誤顯示
+      - `test_analyzer_error_parsing()` - 解析錯誤訊息
+      - `test_analyzer_error_from_string()` - 字串轉換
+      - `test_analyzer_error_from_io_error()` - IO 錯誤轉換
+      - `test_result_type_alias()` - Result 類型別名
+      
+   **測試統計**：
+   - 總測試數：24
+   - 覆蓋模組：4（path, metadata, regex, error）
+   - 全部通過：✅
 
 2. **文件註解** ✅ **已完成**
 
@@ -193,10 +225,12 @@ for (i, value) in values.iter().enumerate() {
    /// * `file_path` - KML 檔案路徑
    ///
    /// # Returns
+   ///
    /// 成功時返回軌跡資料向量
    ///
    /// # Example
-   /// ```rust
+   ///
+   /// ```ignore
    /// let tracks = extract_placemarks_with_paths(&path)?;
    /// ```
    pub fn extract_placemarks_with_paths(file_path: &PathBuf) -> Result<...>

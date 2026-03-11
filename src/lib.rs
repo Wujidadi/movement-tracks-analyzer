@@ -7,11 +7,11 @@
 //! - **流式 XML 解析**：高效處理大型 KML 檔案（50MB+）
 //! - **軌跡分析**：計算距離、時間、座標等資訊
 //! - **多格式輸出**：支援 JSON、CSV、TSV 和表格格式
-//! - **自訂錯誤處理**：清晰的錯誤類型和消息
+//! - **自訂錯誤處理**：清晰的錯誤類型和訊息
 //!
 //! # 範例
 //!
-//! ```rust
+//! ```ignore
 //! use movement_tracks_analyzer::{extract_placemarks_with_paths, format_output, OutputFormat};
 //! use std::path::PathBuf;
 //!

@@ -57,3 +57,44 @@ impl From<&str> for AnalyzerError {
 
 /// 便捷的 Result 類型別名
 pub type Result<T> = std::result::Result<T, AnalyzerError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_analyzer_error_display() {
+        let err = AnalyzerError::FileNotFound("/path/to/file.kml".to_string());
+        assert_eq!(err.to_string(), "File not found: /path/to/file.kml");
+    }
+
+    #[test]
+    fn test_analyzer_error_parsing() {
+        let err = AnalyzerError::ParsingError("Invalid XML format".to_string());
+        assert_eq!(err.to_string(), "Parsing error: Invalid XML format");
+    }
+
+    #[test]
+    fn test_analyzer_error_from_string() {
+        let err: AnalyzerError = "Test error".into();
+        assert!(matches!(err, AnalyzerError::Other(_)));
+        assert_eq!(err.to_string(), "Test error");
+    }
+
+    #[test]
+    fn test_analyzer_error_from_io_error() {
+        use std::io;
+        let io_err = io::Error::new(io::ErrorKind::NotFound, "file not found");
+        let err: AnalyzerError = io_err.into();
+        assert!(matches!(err, AnalyzerError::Io(_)));
+    }
+
+    #[test]
+    fn test_result_type_alias() {
+        let result: Result<String> = Ok("Success".to_string());
+        assert!(result.is_ok());
+
+        let error_result: Result<String> = Err(AnalyzerError::Other("Error".to_string()));
+        assert!(error_result.is_err());
+    }
+}

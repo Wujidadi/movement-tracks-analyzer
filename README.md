@@ -119,7 +119,7 @@ cargo build --release
 
 透過狀態機設計、模組化重構等技術，將認知複雜度降低 87%。詳見 [REFACTORING.md](./REFACTORING.md)
 
-採用**自訂錯誤類型**取代 `Box<dyn Error>`，提供類型安全和清晰的錯誤消息。
+採用**自訂錯誤類型**取代 `Box<dyn Error>`，提供類型安全和清晰的錯誤訊息。
 
 ## 更多資訊
 

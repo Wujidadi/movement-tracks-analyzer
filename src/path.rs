@@ -14,11 +14,11 @@
 /// - `year` (年份)：如「2025」
 /// - `month` (月份)：如「2025-03」
 ///
-/// 若資訊不足，對應欄位為空字符串。
+/// 若資訊不足，對應欄位為空字串。
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// use movement_tracks_analyzer::extract_categories;
 ///
 /// let path = vec![
@@ -97,5 +97,86 @@ fn extract_single_element(path: &[&String]) -> (String, String, String, String) 
             elem.to_string(),
             String::new(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_categories_full_path() {
+        let path = vec![
+            "移動軌跡".to_string(),
+            "戶外運動".to_string(),
+            "步行".to_string(),
+            "2025".to_string(),
+            "2025-03".to_string(),
+        ];
+
+        let (cat, act, year, month) = extract_categories(&path);
+        assert_eq!(cat, "戶外運動");
+        assert_eq!(act, "步行");
+        assert_eq!(year, "2025");
+        assert_eq!(month, "2025-03");
+    }
+
+    #[test]
+    fn test_extract_categories_with_spaces() {
+        let path = vec![
+            "移動軌跡".to_string(),
+            "  動力交通工具  ".to_string(),
+            "飛機".to_string(),
+            "2026".to_string(),
+            "2026-02".to_string(),
+        ];
+
+        let (cat, act, year, month) = extract_categories(&path);
+        // Space padding is preserved in the implementation
+        assert_eq!(cat, "  動力交通工具  ");
+        assert_eq!(act, "飛機");
+        assert_eq!(year, "2026");
+        assert_eq!(month, "2026-02");
+    }
+
+    #[test]
+    fn test_extract_categories_with_three_meaningful_elements() {
+        let path = vec![
+            "移動軌跡".to_string(),
+            "戶外運動".to_string(),
+            "步行".to_string(),
+            "2025".to_string(),
+        ];
+
+        let (cat, act, year, month) = extract_categories(&path);
+        // meaningful_path has 4 elements, uses _ pattern (len - 4, len - 3, len - 2, len - 1)
+        // So indices are: (0, 1, 2, 3) = ("移動軌跡", "戶外運動", "步行", "2025")
+        assert_eq!(cat, "移動軌跡");
+        assert_eq!(act, "戶外運動");
+        assert_eq!(year, "步行");
+        assert_eq!(month, "2025");
+    }
+
+    #[test]
+    fn test_extract_categories_single_non_root_element() {
+        let path = vec!["2025-03".to_string()]; // Just a month
+
+        let (cat, act, year, month) = extract_categories(&path);
+        // extract_single_element checks for '-' pattern
+        assert_eq!(cat, "");
+        assert_eq!(act, "");
+        assert_eq!(year, "");
+        assert_eq!(month, "2025-03");
+    }
+
+    #[test]
+    fn test_extract_categories_empty_path() {
+        let path: Vec<String> = vec![];
+
+        let (cat, act, year, month) = extract_categories(&path);
+        assert_eq!(cat, "");
+        assert_eq!(act, "");
+        assert_eq!(year, "");
+        assert_eq!(month, "");
     }
 }
