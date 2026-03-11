@@ -192,15 +192,28 @@ for (i, value) in values.iter().enumerate() {
    pub fn extract_placemarks_with_paths(file_path: &PathBuf) -> Result<...>
    ```
 
-3. **錯誤處理**：使用自訂錯誤類型（而非 `Box<dyn std::error::Error>`）
+3. **錯誤處理** ✅ **已完成**
+
+   使用自訂錯誤類型（而非 `Box<dyn std::error::Error>`）
    ```rust
    #[derive(Debug)]
    pub enum AnalyzerError {
-       IoError(std::io::Error),
+       Io(io::Error),
        ParsingError(String),
-       ...
+       TimeParsingError(String),
+       CoordinateParsingError(String),
+       FileNotFound(String),
+       Other(String),
    }
    ```
+
+   **實現細節**：
+    - ✅ 新增 `error.rs` 模組（57 行）
+    - ✅ 實現 `Display` 和 `Error` traits
+    - ✅ 提供自動錯誤轉換（`From` implementations）
+    - ✅ 所有函式返回 `Result<T>` 別名（簡潔）
+    - ✅ 優雅的錯誤顯示（不是 Debug 格式）
+    - ✅ 更新所有相關模組（parser、path_resolver、output、converter）
 
 ## 相關閱讀
 

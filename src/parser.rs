@@ -1,7 +1,7 @@
-use crate::{extract_categories, TrackMetadata, END_TIME_PATTERN, START_TIME_PATTERN};
+use crate::{extract_categories, Result, TrackMetadata, END_TIME_PATTERN, START_TIME_PATTERN};
 use chrono::NaiveDateTime;
 use quick_xml::{events::Event, Reader};
-use std::{error::Error, fs, io::BufReader, path::PathBuf};
+use std::{fs, io::BufReader, path::PathBuf};
 
 /// 從 KML Description 中提取開始和結束時間
 fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
@@ -20,7 +20,7 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
 /// 使用流式 XML 解析器從 KML 中提取所有 Placemark（只掃描一次）
 pub fn extract_placemarks_with_paths(
     file_path: &PathBuf,
-) -> Result<Vec<(Vec<String>, TrackMetadata)>, Box<dyn Error>> {
+) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
     let file = fs::File::open(file_path)?;
     let reader = BufReader::new(file);
     let mut xml_reader = Reader::from_reader(reader);
@@ -142,7 +142,7 @@ fn handle_end_tag(
     folder_stack: &mut Vec<String>,
     state: &mut ParserState,
     results: &mut Vec<(Vec<String>, TrackMetadata)>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     match tag_name {
         "Folder" => {
             if !folder_stack.is_empty() {
@@ -187,7 +187,7 @@ fn handle_end_tag(
 }
 
 /// 解析座標字串為 (lon, lat) 對
-fn parse_coordinates(coords_str: &str) -> Result<Vec<(f64, f64)>, Box<dyn Error>> {
+fn parse_coordinates(coords_str: &str) -> Result<Vec<(f64, f64)>> {
     Ok(coords_str
         .trim()
         .split_whitespace()

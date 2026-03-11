@@ -3,11 +3,10 @@ use crate::{
     config::{Config, OutputType},
     path_resolver::resolve_kml_file,
 };
-use movement_tracks_analyzer::OutputFormat;
-use std::error::Error;
+use movement_tracks_analyzer::{OutputFormat, Result};
 
 /// 從 CLI 參數建立設定
-pub fn build_config(args: Args) -> Result<Config, Box<dyn Error>> {
+pub fn build_config(args: Args) -> Result<Config> {
     let output_type = match args.output {
         OutputTypeArg::Shell => OutputType::Shell,
         OutputTypeArg::File => OutputType::File,

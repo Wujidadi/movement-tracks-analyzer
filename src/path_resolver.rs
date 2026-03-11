@@ -1,14 +1,15 @@
-use std::{error::Error, path::PathBuf};
+use movement_tracks_analyzer::Result;
+use std::path::PathBuf;
 
 /// 解析 KML 檔案路徑
-pub fn resolve_kml_file(cli_file: Option<PathBuf>) -> Result<PathBuf, Box<dyn Error>> {
+pub fn resolve_kml_file(cli_file: Option<PathBuf>) -> Result<PathBuf> {
     // 檢查命令行參數
     if let Some(path) = cli_file {
         if path.exists() {
             println!("Using KML file from command line: {}", path.display());
             return Ok(path);
         }
-        return Err(format!("KML file not found: {}", path.display()).into());
+        return Err(format!("File not found: {}", path.display()).into());
     }
 
     // 檢查執行檔所在目錄
@@ -37,7 +38,7 @@ fn check_exe_directory() -> Option<PathBuf> {
 }
 
 /// 檢查當前工作目錄是否存在 KML 檔案
-fn check_current_directory() -> Result<PathBuf, Box<dyn Error>> {
+fn check_current_directory() -> Result<PathBuf> {
     let current_dir = std::env::current_dir()?;
     check_path_with_filenames(&current_dir, &["移動軌跡.kml", "Movement Tracks.kml"])
         .inspect(|path| println!("Using default KML file: {}", path.display()))

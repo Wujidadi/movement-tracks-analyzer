@@ -12,12 +12,13 @@ movement-tracks-analyzer/
 ├── ARCHITECTURE.md                   # 本文檔
 ├── src/
 │   ├── lib.rs                        # Library root，導出公開 API
-│   ├── main.rs                       # 💎 CLI 主程序（16 行）
+│   ├── main.rs                       # 💎 CLI 主程序（20 行）
 │   ├── cli.rs                        # 命令行參數定義
 │   ├── config.rs                     # 配置結構體
 │   ├── path_resolver.rs              # 檔案路徑解析
 │   ├── output.rs                     # 輸出和儲存邏輯
 │   ├── converter.rs                  # 參數轉換
+│   ├── error.rs                      # 自訂錯誤類型
 │   ├── regex.rs                      # 正規表示式模式
 │   ├── parser.rs                     # XML 流式解析（狀態機）
 │   ├── path.rs                       # 路徑提取邏輯
@@ -83,6 +84,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 - **職責**：命令行參數轉換
 - **函式**：
     - `build_config()` - 參數到配置的轉換
+
+### `error.rs` (57 行)
+
+- **職責**：自訂錯誤類型定義
+- **內容**：
+    - `AnalyzerError` 枚舉 - 6 種錯誤類型
+    - `Display` trait 實現 - 用戶友好的錯誤消息
+    - `Error` trait 實現 - 標準錯誤接口
+    - `From` implementations - 自動錯誤轉換
+    - `Result<T>` 型態別名 - 便捷的 Result 類型
 
 ### `regex.rs` (18 行)
 
@@ -170,11 +181,11 @@ output_results()
 
 | 指標          | 數值                   |
 |-------------|----------------------|
-| **程式碼總行數**  | 771                  |
-| **模組數量**    | 12                   |
+| **程式碼總行數**  | 925                  |
+| **模組數量**    | 13                   |
 | **認知複雜度最高** | 30% (< 40% ✅)        |
 | **依賴數量**    | 9                    |
-| **編譯時間**    | 1.62s                |
+| **編譯時間**    | 1.19s                |
 | **二進位檔案大小** | 2.3MB                |
 | **測試數據**    | 48MB KML / 2,164 個軌跡 |
 
