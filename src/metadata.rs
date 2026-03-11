@@ -1,6 +1,40 @@
 use chrono::NaiveDateTime;
 
 /// 軌跡 Placemark 詮釋資料結構
+///
+/// 包含軌跡的所有相關資訊，包括時間、座標、分類和距離計算。
+///
+/// # Fields
+///
+/// * `name` - 軌跡名稱（通常為時間戳或人工標記）
+/// * `start_time` - 軌跡開始時間
+/// * `end_time` - 軌跡結束時間
+/// * `coordinates` - 軌跡點座標陣列（經度、緯度）
+/// * `category` - 活動大分類（如「戶外運動」）
+/// * `activity` - 活動細分類（如「步行」）
+/// * `year` - 活動年份
+/// * `month` - 活動月份（YYYY-MM 格式）
+///
+/// # Example
+///
+/// ```rust
+/// use movement_tracks_analyzer::TrackMetadata;
+/// use chrono::NaiveDateTime;
+///
+/// let metadata = TrackMetadata {
+///     name: "Morning Walk".to_string(),
+///     start_time: NaiveDateTime::parse_from_str("2025-03-11 08:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
+///     end_time: NaiveDateTime::parse_from_str("2025-03-11 09:30:00", "%Y-%m-%d %H:%M:%S").unwrap(),
+///     coordinates: vec![(120.5, 24.7), (120.51, 24.71)],
+///     category: "戶外運動".to_string(),
+///     activity: "步行".to_string(),
+///     year: "2025".to_string(),
+///     month: "2025-03".to_string(),
+/// };
+///
+/// let distance = metadata.calculate_distance();
+/// let duration = metadata.duration_seconds();
+/// ```
 #[derive(Debug, Clone)]
 pub struct TrackMetadata {
     /// 軌跡名稱
@@ -22,7 +56,19 @@ pub struct TrackMetadata {
 }
 
 impl TrackMetadata {
-    /// 計算軌跡距離（公尺）- 使用半正矢（Haversine）公式
+    /// 計算軌跡總距離（公尺）
+    ///
+    /// 使用半正矢（Haversine）公式計算地球表面上兩點間的大圓距離。
+    ///
+    /// # Returns
+    ///
+    /// 軌跡總距離，單位為公尺（m）
+    ///
+    /// # Algorithm
+    ///
+    /// 半正矢公式計算球面兩點距離：
+    /// - 地球半徑：6371 km
+    /// - 精度：適合一般 GPS 應用（誤差 < 1%）
     pub fn calculate_distance(&self) -> f64 {
         const EARTH_RADIUS_KM: f64 = 6371.0;
         let mut total_distance = 0.0;
@@ -47,6 +93,16 @@ impl TrackMetadata {
     }
 
     /// 計算軌跡持續時間（秒）
+    ///
+    /// 計算開始時間和結束時間之間的時間差。
+    ///
+    /// # Returns
+    ///
+    /// 持續時間，單位為秒（s）
+    ///
+    /// # Note
+    ///
+    /// 若 `end_time` 早於 `start_time`，返回負數。
     pub fn duration_seconds(&self) -> i64 {
         (self.end_time - self.start_time).num_seconds()
     }

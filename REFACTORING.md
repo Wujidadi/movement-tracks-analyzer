@@ -183,14 +183,31 @@ for (i, value) in values.iter().enumerate() {
    }
    ```
 
-2. **文件註解**：添加 rustdoc 註解
+2. **文件註解** ✅ **已完成**
+
+   添加 rustdoc 註解為公開 API 提供清晰的文檔
    ```rust
    /// 從 KML 檔案中提取軌跡
-   /// 
+   ///
    /// # Arguments
    /// * `file_path` - KML 檔案路徑
+   ///
+   /// # Returns
+   /// 成功時返回軌跡資料向量
+   ///
+   /// # Example
+   /// ```rust
+   /// let tracks = extract_placemarks_with_paths(&path)?;
+   /// ```
    pub fn extract_placemarks_with_paths(file_path: &PathBuf) -> Result<...>
    ```
+
+   **實現細節**：
+    - ✅ lib.rs：添加庫級別文檔（功能介紹、範例）
+    - ✅ parser.rs：`extract_placemarks_with_paths()` 函式文檔（參數、返回值、效能、範例）
+    - ✅ path.rs：`extract_categories()` 函式文檔（返回值詳解、使用範例）
+    - ✅ format.rs：`format_output()` 函式文檔（格式詳解、使用範例）
+    - ✅ metadata.rs：`TrackMetadata` 結構體和方法文檔（欄位說明、算法解釋）
 
 3. **錯誤處理** ✅ **已完成**
 

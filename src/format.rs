@@ -28,7 +28,42 @@ struct TrackRecord {
     month: String,
 }
 
-/// 根據格式生成輸出
+/// 根據指定格式產生輸出字符串
+///
+/// 支援多種輸出格式，適應不同的使用場景。
+///
+/// # Arguments
+///
+/// * `format` - 輸出格式（JSON、CSV、TSV、Table）
+/// * `tracks` - 軌跡資料陣列，包含路徑和詮釋資料
+///
+/// # Returns
+///
+/// 格式化後的字符串，可直接用於顯示或保存到檔案
+///
+/// # Format Details
+///
+/// - **Json**：結構化的 JSON 格式，適合程式化處理
+/// - **Csv**：逗號分隔值，適合 Excel 等電子表格
+/// - **Tsv**：Tab 分隔值，避免資料中的逗號引起混亂
+/// - **Table**：命令行表格格式，支援 Unicode 字元對齊（漢字寬度=2）
+///
+/// # Example
+///
+/// ```rust
+/// use movement_tracks_analyzer::{extract_placemarks_with_paths, format_output, OutputFormat};
+/// use std::path::PathBuf;
+///
+/// let tracks = extract_placemarks_with_paths(&PathBuf::from("tracks.kml"))?;
+///
+/// // 輸出為 JSON
+/// let json_output = format_output(OutputFormat::Json, &tracks);
+///
+/// // 輸出為表格（命令行展示）
+/// let table_output = format_output(OutputFormat::Table, &tracks);
+/// println!("{}", table_output);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 pub fn format_output(format: OutputFormat, tracks: &[(Vec<String>, TrackMetadata)]) -> String {
     match format {
         OutputFormat::Json => format_json(tracks),

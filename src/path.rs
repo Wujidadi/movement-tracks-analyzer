@@ -1,4 +1,40 @@
-/// 從路徑中提取分類、活動、年度、月份
+/// 從 XML 資料夾路徑中提取軌跡分類資訊
+///
+/// 根據資料夾層級深度智能識別分類、活動、年份和月份。
+///
+/// # Arguments
+///
+/// * `folder_path` - XML 路徑中的資料夾名稱陣列（由上而下）
+///
+/// # Returns
+///
+/// 包含四個元素的元組：`(category, activity, year, month)`
+/// - `category` (分類)：如「戶外運動」、「動力交通工具」
+/// - `activity` (活動)：如「步行」、「飛機」
+/// - `year` (年份)：如「2025」
+/// - `month` (月份)：如「2025-03」
+///
+/// 若資訊不足，對應欄位為空字符串。
+///
+/// # Example
+///
+/// ```rust
+/// use movement_tracks_analyzer::extract_categories;
+///
+/// let path = vec![
+///     "移動軌跡".to_string(),
+///     "戶外運動".to_string(),
+///     "步行".to_string(),
+///     "2025".to_string(),
+///     "2025-03".to_string(),
+/// ];
+///
+/// let (category, activity, year, month) = extract_categories(&path);
+/// assert_eq!(category, "戶外運動");
+/// assert_eq!(activity, "步行");
+/// assert_eq!(year, "2025");
+/// assert_eq!(month, "2025-03");
+/// ```
 pub fn extract_categories(folder_path: &[String]) -> (String, String, String, String) {
     let meaningful_path: Vec<&String> = folder_path
         .iter()

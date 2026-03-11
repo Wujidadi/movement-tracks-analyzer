@@ -17,7 +17,42 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
     Some((start, end))
 }
 
-/// 使用流式 XML 解析器從 KML 中提取所有 Placemark（只掃描一次）
+/// 從 KML 檔案中提取所有 Placemark 軌跡點
+///
+/// 使用流式 XML 解析器只掃描檔案一次，自動追蹤 XML 層級以提取軌跡分類資訊。
+///
+/// # Arguments
+///
+/// * `file_path` - KML 檔案的路徑
+///
+/// # Returns
+///
+/// 成功時返回 `Vec<(Vec<String>, TrackMetadata)>`，其中：
+/// - `Vec<String>` 軌跡路徑（分類、活動、年份、月份）
+/// - `TrackMetadata` 軌跡詳細資訊（名稱、時間、座標等）
+///
+/// # Errors
+///
+/// 若檔案不存在或 KML 格式無效，返回 `AnalyzerError`
+///
+/// # Performance
+///
+/// - 時間複雜度：O(n)（單次掃描）
+/// - 空間複雜度：O(m)（m = Placemarks 數量）
+/// - 適合處理大型檔案（50MB+）
+///
+/// # Example
+///
+/// ```rust
+/// use movement_tracks_analyzer::extract_placemarks_with_paths;
+/// use std::path::PathBuf;
+///
+/// let placemarks = extract_placemarks_with_paths(&PathBuf::from("tracks.kml"))?;
+/// for (path, metadata) in placemarks {
+///     println!("{}: {} -> {}", metadata.name, path.join("/"), metadata.calculate_distance());
+/// }
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 pub fn extract_placemarks_with_paths(
     file_path: &PathBuf,
 ) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
