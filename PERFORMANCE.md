@@ -1,8 +1,8 @@
-# 性能優化說明
+# 效能優化說明
 
-## 性能改進成果
+## 效能改進成果
 
-使用**流式 XML 解析器** (`quick-xml`) 替代原有的正規表示式方案，實現了劇烈的性能提升：
+使用**流式 XML 解析器** (`quick-xml`) 替代原有的正規表示式方案，實現了劇烈的效能提升：
 
 ### 處理時間對比
 
@@ -36,25 +36,25 @@
 // 邊解析邊處理，無須整個載入到記憶體
 let mut xml_reader = Reader::from_reader(reader);
 loop {
-match xml_reader.read_event_into( & mut buf) {
-Ok(Event::Start(elem)) => { /* 進入元素 */ }
-Ok(Event::Text(text)) => { /* 處理文本 */ }
-Ok(Event::End(elem)) => { /* 離開元素 */ }
-_ => {}
-}
+    match xml_reader.read_event_into( & mut buf) {
+        Ok(Event::Start(elem)) => { /* 進入元素 */ }
+        Ok(Event::Text(text)) => { /* 處理文本 */ }
+        Ok(Event::End(elem)) => { /* 離開元素 */ }
+        _ => {}
+    }
 }
 ```
 
 **優點**：
 
 - ✅ 只掃描檔案一次（O(n) 複雜度）
-- ✅ 自動維護 Folder 堆棧，無須重複搜索
+- ✅ 自動維護 Folder 堆棧，無須重複查找
 - ✅ 流式處理，記憶體佔用恆定
 - ✅ 原生支援 XML 層級和 CDATA 處理
 
 ### 2. 預編譯正規表示式
 
-使用 `once_cell::sync::Lazy` 緩存正規表示式，避免重複編譯：
+使用 `once_cell::sync::Lazy` 快取正規表示式，避免重複編譯：
 
 ```rust
 static START_TIME_PATTERN: Lazy<Regex> = Lazy::new(||
@@ -63,9 +63,9 @@ static START_TIME_PATTERN: Lazy<Regex> = Lazy::new(||
 ```
 
 - 第一次調用時編譯一次，後續直接使用
-- **節省**: 原來每個 Placemark 編譯一次正規表示式，現在全局共用一次
+- **節省**：原本每處理一個 Placemark 就會編譯一次正規表示式，現在全域共用一次
 
-### 3. Unicode 寬字元支持
+### 3. Unicode 寬字元支援
 
 表格輸出中正確計算漢字寬度（2 倍顯示寬度）：
 
@@ -96,4 +96,11 @@ unicode-width = "0.2"    # Unicode 寬字元計算
 
 ## 結論
 
-使用流式 XML 解析將性能從 **4 分鐘** 提升至 **0.3 秒**，對於大型 KML 檔案（50MB+）的實時分析已達生產級別。
+使用流式 XML 解析將效能從 **4 分鐘** 提升至 **0.3 秒**，對於大型 KML 檔案（50MB+）的即時分析已達產品等級。
+
+## 相關閱讀
+
+- [README.md](./README.md) - 快速開始使用
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - 詳細的模組設計說明
+- [REFACTORING.md](./REFACTORING.md) - 程式碼重構與品質改進
+

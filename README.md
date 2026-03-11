@@ -3,11 +3,10 @@
 ## 功能概述
 
 - 解析 KML 格式的 GPS 移動軌跡檔案
-  > 個人自用的檔案，一般名為 `移動軌跡.kml`
+  > 個人自用的軌跡紀錄檔，一般名為 `移動軌跡.kml`
 - 提取軌跡的開始/結束時間、距離、持續時間、座標點數量
 - 區分為：分類（戶外運動、動力交通工具...）、活動（步行、自行車、飛機...）、年份、月份
-- 支持多種輸出格式：JSON、CSV、TSV、表格
-- 支持 Unicode 正確對齊
+- 支援多種輸出格式：JSON、CSV、TSV、表格（支援 Unicode 字元正確對齊）
 
 ## 快速開始
 
@@ -40,6 +39,7 @@ cargo build --release
 | `-f, --file <PATH>`     | 指定 KML 檔路徑                                |
 | `-o, --output <TYPE>`   | 輸出類型：`shell`（命令行）或 `file`（檔案，預設）          |
 | `-m, --format <FORMAT>` | 輸出格式：`json`、`csv`、`tsv`、`table`（默認：`csv`） |
+| `-x, --export <PATH>`   | 輸出檔案路徑（支持目錄或完整檔案路徑，預設為當前目錄）               |
 | `-h, --help`            | 顯示說明信息                                    |
 
 ## 輸出格式說明
@@ -89,37 +89,40 @@ cargo build --release
 # 生成 tracks_output.csv
 ```
 
+### 指定輸出路徑
+
+```bash
+# 輸出到指定目錄（使用預設檔名）
+./target/release/movement_tracks_analyzer -o file -m json -x /tmp
+# 生成 /tmp/tracks_output.json
+
+# 輸出到自訂檔名
+./target/release/movement_tracks_analyzer -o file -m csv -x /tmp/my_data.csv
+# 生成 /tmp/my_data.csv
+```
+
 ## 技術細節
 
-### 性能優化
+### 效能優化
 
-採用 **流式 XML 解析**（quick-xml）替代正規表達式掃描：
-- 只掃描 KML 檔案一次，自動追蹤 XML 層級
-- 預編譯正規表達式，避免重複編譯開銷
-- **結果**：O(n²) → O(n) 複雜度，800 倍性能提升
+採用**流式 XML 解析**替代正規表示式掃描，實現 800 倍效能提升。詳見 [PERFORMANCE.md](./PERFORMANCE.md)
 
-詳見 [PERFORMANCE.md](./PERFORMANCE.md)
+### 距離計算與軌跡分析
 
-### 距離計算
+- 使用**半正矢（Haversine）公式**計算地球表面大圓距離
+- 自動追蹤 XML 層級獲取軌跡分類信息
+- 支援完整的時間和座標解析
 
-- 使用**半正矢（Haversine）公式**計算地球表面兩點間的大圓距離
-- 地球半徑：6371 km
-- 結果單位：公尺（m）
+詳細實現見 [ARCHITECTURE.md](./ARCHITECTURE.md) 中的模組詳解。
 
-### 時間提取
+### 程式碼品質
 
-- 從 KML Description 提取時間戳
-- 格式：`YYYY-MM-DD HH:MM:SS`
-- 使用正規表示法提取 Start 和 End 時間
+透過狀態機設計、模組化重構等技術，將認知複雜度降低 87%。詳見 [REFACTORING.md](./REFACTORING.md)
 
-### 路徑追蹤
+## 更多資訊
 
-- 按 XML 嵌套順序追蹤 Folder 層級
-- 自動去除根節點（如 "移動軌跡"）
-- 取最後 4 個 Folder 作為分類路徑（分類、活動、年度、月份）
-
-### 表格對齊
-
-- 使用 `unicode-width` 庫正確計算漢字寬度（漢字 = 2 寬）
-- 自動計算欄寬
-- 數字欄位（Duration、Distance、Points）靠右對齊，其他欄位靠左對齊
+| 文檔                                   | 用途                      |
+|--------------------------------------|-------------------------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | 📐 專案結構、模組設計、資料流、統計數據   |
+| [PERFORMANCE.md](./PERFORMANCE.md)   | ⚡ 效能優化技術、流式 XML 解析、效能數據 |
+| [REFACTORING.md](./REFACTORING.md)   | 🔧 程式碼重構過程、複雜度改進、設計模式   |
