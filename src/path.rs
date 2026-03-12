@@ -1,39 +1,40 @@
-/// 從 XML 資料夾路徑中提取軌跡分類資訊
+/// 從 KML 資料夾路徑中提取軌跡分類資訊
 ///
-/// 根據資料夾層級深度智能識別分類、活動、年份和月份。
+/// 根據目錄層級深度自動識別分類、活動、年份和月份。
 ///
 /// # Arguments
 ///
-/// * `folder_path` - XML 路徑中的資料夾名稱陣列（由上而下）
+/// * `folder_path` - KML 路徑中的資料夾名稱陣列（由上而下）
 ///
 /// # Returns
 ///
 /// 包含四個元素的元組：`(category, activity, year, month)`
 /// - `category` (分類)：如「戶外運動」、「動力交通工具」
 /// - `activity` (活動)：如「步行」、「飛機」
-/// - `year` (年份)：如「2025」
-/// - `month` (月份)：如「2025-03」
+/// - `year` (年份)：如「2026」
+/// - `month` (月份)：如「2026-03」
 ///
 /// 若資訊不足，對應欄位為空字串。
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use movement_tracks_analyzer::extract_categories;
 ///
 /// let path = vec![
 ///     "移動軌跡".to_string(),
 ///     "戶外運動".to_string(),
 ///     "步行".to_string(),
-///     "2025".to_string(),
-///     "2025-03".to_string(),
+///     "2026".to_string(),
+///     "2026-03".to_string(),
 /// ];
 ///
 /// let (category, activity, year, month) = extract_categories(&path);
+/// // With 5 elements, uses pattern (len-4, len-3, len-2, len-1) = (1, 2, 3, 4)
 /// assert_eq!(category, "戶外運動");
 /// assert_eq!(activity, "步行");
-/// assert_eq!(year, "2025");
-/// assert_eq!(month, "2025-03");
+/// assert_eq!(year, "2026");
+/// assert_eq!(month, "2026-03");
 /// ```
 pub fn extract_categories(folder_path: &[String]) -> (String, String, String, String) {
     let meaningful_path: Vec<&String> = folder_path
@@ -110,15 +111,15 @@ mod tests {
             "移動軌跡".to_string(),
             "戶外運動".to_string(),
             "步行".to_string(),
-            "2025".to_string(),
-            "2025-03".to_string(),
+            "2026".to_string(),
+            "2026-03".to_string(),
         ];
 
         let (cat, act, year, month) = extract_categories(&path);
         assert_eq!(cat, "戶外運動");
         assert_eq!(act, "步行");
-        assert_eq!(year, "2025");
-        assert_eq!(month, "2025-03");
+        assert_eq!(year, "2026");
+        assert_eq!(month, "2026-03");
     }
 
     #[test]
@@ -145,28 +146,28 @@ mod tests {
             "移動軌跡".to_string(),
             "戶外運動".to_string(),
             "步行".to_string(),
-            "2025".to_string(),
+            "2026".to_string(),
         ];
 
         let (cat, act, year, month) = extract_categories(&path);
         // meaningful_path has 4 elements, uses _ pattern (len - 4, len - 3, len - 2, len - 1)
-        // So indices are: (0, 1, 2, 3) = ("移動軌跡", "戶外運動", "步行", "2025")
+        // So indices are: (0, 1, 2, 3) = ("移動軌跡", "戶外運動", "步行", "2026")
         assert_eq!(cat, "移動軌跡");
         assert_eq!(act, "戶外運動");
         assert_eq!(year, "步行");
-        assert_eq!(month, "2025");
+        assert_eq!(month, "2026");
     }
 
     #[test]
     fn test_extract_categories_single_non_root_element() {
-        let path = vec!["2025-03".to_string()]; // Just a month
+        let path = vec!["2026-03".to_string()]; // Just a month
 
         let (cat, act, year, month) = extract_categories(&path);
         // extract_single_element checks for '-' pattern
         assert_eq!(cat, "");
         assert_eq!(act, "");
         assert_eq!(year, "");
-        assert_eq!(month, "2025-03");
+        assert_eq!(month, "2026-03");
     }
 
     #[test]

@@ -11,14 +11,23 @@
 //!
 //! # 範例
 //!
-//! ```ignore
+//! ```
 //! use movement_tracks_analyzer::{extract_placemarks_with_paths, format_output, OutputFormat};
 //! use std::path::PathBuf;
 //!
-//! let file_path = PathBuf::from("tracks.kml");
-//! let placemarks = extract_placemarks_with_paths(&file_path)?;
-//! let output = format_output(OutputFormat::Json, &placemarks);
-//! println!("{}", output);
+//! // 解析 KML 檔案
+//! let placemarks = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kml"))?;
+//! let json = format_output(OutputFormat::Json, &placemarks);
+//! assert!(!json.is_empty());
+//! assert!(json.contains("2026-03"));
+//!
+//! // 輸出為 CSV
+//! let csv = format_output(OutputFormat::Csv, &placemarks);
+//! assert!(csv.contains("Start,End"));
+//!
+//! // 輸出為表格
+//! let table = format_output(OutputFormat::Table, &placemarks);
+//! assert!(table.contains("2026-03"));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 

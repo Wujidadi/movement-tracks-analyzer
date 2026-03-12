@@ -17,9 +17,9 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
     Some((start, end))
 }
 
-/// 從 KML 檔案中提取所有 Placemark 軌跡點
+/// 從 KML 檔案中提取所有 Placemark 軌跡
 ///
-/// 使用流式 XML 解析器只掃描檔案一次，自動追蹤 XML 層級以提取軌跡分類資訊。
+/// 使用流式 XML 解析器只掃描檔案一次，自動追蹤 KML 層級以提取軌跡分類資訊。
 ///
 /// # Arguments
 ///
@@ -43,13 +43,20 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use movement_tracks_analyzer::extract_placemarks_with_paths;
 /// use std::path::PathBuf;
 ///
-/// let placemarks = extract_placemarks_with_paths(&PathBuf::from("tracks.kml"))?;
+/// // 解析 KML 檔案
+/// let placemarks = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kml"))?;
+///
+/// // 迴圈處理每個軌跡
 /// for (path, metadata) in placemarks {
-///     println!("{}: {} -> {}", metadata.name, path.join("/"), metadata.calculate_distance());
+///     println!("Placemark: {}", metadata.name);
+///     println!("Category: {}", metadata.category);
+///     println!("Distance: {} m", metadata.calculate_distance());
+///     println!("Duration: {} s", metadata.duration_seconds());
+///     println!("Path: {}", path.join(" > "));
 /// }
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -92,7 +99,7 @@ pub fn extract_placemarks_with_paths(
             }
             Ok(Event::Eof) => break,
             Err(e) => {
-                eprintln!("XML parsing error: {}", e);
+                eprintln!("KML parsing error: {}", e);
                 break;
             }
             _ => {}

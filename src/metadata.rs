@@ -17,23 +17,19 @@ use chrono::NaiveDateTime;
 ///
 /// # Example
 ///
-/// ```ignore
-/// use movement_tracks_analyzer::TrackMetadata;
-/// use chrono::NaiveDateTime;
+/// ```
+/// use movement_tracks_analyzer::extract_placemarks_with_paths;
+/// use std::path::PathBuf;
 ///
-/// let metadata = TrackMetadata {
-///     name: "Morning Walk".to_string(),
-///     start_time: NaiveDateTime::parse_from_str("2025-03-11 08:00:00", "%Y-%m-%d %H:%M:%S").unwrap(),
-///     end_time: NaiveDateTime::parse_from_str("2025-03-11 09:30:00", "%Y-%m-%d %H:%M:%S").unwrap(),
-///     coordinates: vec![(120.5, 24.7), (120.51, 24.71)],
-///     category: "戶外運動".to_string(),
-///     activity: "步行".to_string(),
-///     year: "2025".to_string(),
-///     month: "2025-03".to_string(),
-/// };
+/// let placemarks = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kml"))?;
+/// for (_path, metadata) in placemarks {
+///     let distance = metadata.calculate_distance();
+///     assert!(distance > 0.0);
 ///
-/// let distance = metadata.calculate_distance();
-/// let duration = metadata.duration_seconds();
+///     let duration = metadata.duration_seconds();
+///     assert!(duration > 0);
+/// }
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug, Clone)]
 pub struct TrackMetadata {
@@ -118,9 +114,9 @@ mod tests {
     fn create_test_metadata() -> TrackMetadata {
         TrackMetadata {
             name: "Test Track".to_string(),
-            start_time: NaiveDateTime::parse_from_str("2025-03-11 10:00:00", "%Y-%m-%d %H:%M:%S")
+            start_time: NaiveDateTime::parse_from_str("2026-03-11 10:00:00", "%Y-%m-%d %H:%M:%S")
                 .unwrap(),
-            end_time: NaiveDateTime::parse_from_str("2025-03-11 11:30:00", "%Y-%m-%d %H:%M:%S")
+            end_time: NaiveDateTime::parse_from_str("2026-03-11 11:30:00", "%Y-%m-%d %H:%M:%S")
                 .unwrap(),
             coordinates: vec![
                 (120.5, 24.7),
@@ -129,8 +125,8 @@ mod tests {
             ],
             category: "戶外運動".to_string(),
             activity: "步行".to_string(),
-            year: "2025".to_string(),
-            month: "2025-03".to_string(),
+            year: "2026".to_string(),
+            month: "2026-03".to_string(),
         }
     }
 

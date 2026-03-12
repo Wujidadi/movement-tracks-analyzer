@@ -50,18 +50,23 @@ struct TrackRecord {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```
 /// use movement_tracks_analyzer::{extract_placemarks_with_paths, format_output, OutputFormat};
 /// use std::path::PathBuf;
 ///
-/// let tracks = extract_placemarks_with_paths(&PathBuf::from("tracks.kml"))?;
+/// let placemarks = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kml"))?;
 ///
 /// // 輸出為 JSON
-/// let json_output = format_output(OutputFormat::Json, &tracks);
+/// let json_output = format_output(OutputFormat::Json, &placemarks);
+/// assert!(json_output.contains("2026-03"));
+///
+/// // 輸出為 CSV
+/// let csv_output = format_output(OutputFormat::Csv, &placemarks);
+/// assert!(csv_output.contains("Start,End"));
 ///
 /// // 輸出為表格（命令行展示）
-/// let table_output = format_output(OutputFormat::Table, &tracks);
-/// println!("{}", table_output);
+/// let table_output = format_output(OutputFormat::Table, &placemarks);
+/// assert!(table_output.contains("Distance"));
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn format_output(format: OutputFormat, tracks: &[(Vec<String>, TrackMetadata)]) -> String {
@@ -92,7 +97,7 @@ fn format_timestamp(metadata: &TrackMetadata) -> (String, String) {
 /// 輸出 CSV 格式
 fn format_csv(tracks: &[(Vec<String>, TrackMetadata)]) -> String {
     let mut output = String::from(
-        "Name,Start,End,Duration (seconds),Distance (meters),Points,Category,Activity,Year,Month\n"
+        "Name,Start,End,Duration (seconds),Distance (meters),Points,Category,Activity,Year,Month\n",
     );
 
     for (_folder_path, metadata) in tracks {
