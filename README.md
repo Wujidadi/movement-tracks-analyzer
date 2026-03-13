@@ -34,13 +34,13 @@ cargo build --release
 
 ## 命令行參數
 
-| 參數                      | 說明                                        |
-|-------------------------|-------------------------------------------|
-| `-f, --file <PATH>`     | 指定 KML 檔路徑                                |
-| `-o, --output <TYPE>`   | 輸出類型：`shell`（命令行）或 `file`（檔案，預設）          |
+| 參數                    | 說明                                                   |
+| ----------------------- | ------------------------------------------------------ |
+| `-f, --file <PATH>`     | 指定 KML 檔路徑                                        |
+| `-o, --output <TYPE>`   | 輸出類型：`shell`（命令行）或 `file`（檔案，預設）     |
 | `-m, --format <FORMAT>` | 輸出格式：`json`、`csv`、`tsv`、`table`（默認：`csv`） |
-| `-x, --export <PATH>`   | 輸出檔案路徑（支持目錄或完整檔案路徑，預設為當前目錄）               |
-| `-h, --help`            | 顯示說明信息                                    |
+| `-x, --export <PATH>`   | 輸出檔案路徑（支持目錄或完整檔案路徑，預設為當前目錄） |
+| `-h, --help`            | 顯示說明信息                                           |
 
 ## 輸出格式說明
 
@@ -121,10 +121,57 @@ cargo build --release
 
 採用**自訂錯誤類型**取代 `Box<dyn Error>`，提供類型安全和清晰的錯誤訊息。
 
+## 開發者指南
+
+本專案採用**AI Agent 協作指引**架構，支援 GitHub Copilot、Claude Code、Cursor 等工具的智能協作。指引文件採取**四層分層設計**，在正確的時機提供正確的上下文。
+
+### 協作指引結構
+
+```
+.github/
+├── copilot-instructions.md         # 入口文件
+├── AGENTS.md                       # 全域操作規範 ← 根目錄軟連結
+├── instructions/
+│   └── rust.instructions.md        # Rust 開發規範
+└── skills/
+    ├── testing/SKILL.md            # 測試技能
+    ├── cli-development/SKILL.md    # CLI 開發技能
+    └── kml-parsing/SKILL.md        # KML 解析技能
+```
+
+### 快速參考
+
+| 內容                                                                                       | 用途                                    |
+| ------------------------------------------------------------------------------------------ | --------------------------------------- |
+| [`.github/copilot-instructions.md`](./.github/copilot-instructions.md)                     | AI Agent 協作入口與語言規則             |
+| [`AGENTS.md`](./AGENTS.md)                                                                 | 全域操作規範、技術概覽、禁止事項        |
+| [`.github/instructions/rust.instructions.md`](./.github/instructions/rust.instructions.md) | Rust 開發規範、架構模式、修改入口       |
+| [`.github/skills/`](./.github/skills/)                                                     | 特定任務技能模組（測試、CLI、KML 解析） |
+
+### 與 AI Agent 協作
+
+新增功能或修復 Bug 時，請遵循 `.github/` 中的協作指引。Agent 會自動載入相應的上下文，提供：
+
+- ✅ 一致的程式風格與命名規則
+- ✅ 完整的測試驅動開發指南
+- ✅ 模組化架構與最佳實踐
+- ✅ 性能與最佳化建議
+
+如需更新協作指引上下文，明確告知 Agent：「更新協作指引上下文」
+
+### 使用本地協作指引
+
+新對話時，Agent 會自動載入 `.github/copilot-instructions.md` 及相應層次的指引文件。若需手動指引 Agent，可參考：
+
+1. **編輯程式碼時**：自動載入 `.github/instructions/rust.instructions.md`
+2. **撰寫測試時**：自動載入 `.github/skills/testing/SKILL.md`
+3. **開發 CLI 功能時**：自動載入 `.github/skills/cli-development/SKILL.md`
+4. **改進 KML 解析時**：自動載入 `.github/skills/kml-parsing/SKILL.md`
+
 ## 更多資訊
 
-| 文檔                                   | 用途                      |
-|--------------------------------------|-------------------------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 📐 專案結構、模組設計、資料流、統計數據   |
+| 文檔                                 | 用途                                    |
+| ------------------------------------ | --------------------------------------- |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | 📐 專案結構、模組設計、資料流、統計數據  |
 | [PERFORMANCE.md](./PERFORMANCE.md)   | ⚡ 效能優化技術、流式 XML 解析、效能數據 |
-| [REFACTORING.md](./REFACTORING.md)   | 🔧 程式碼重構過程、複雜度改進、設計模式   |
+| [REFACTORING.md](./REFACTORING.md)   | 🔧 程式碼重構過程、複雜度改進、設計模式  |
