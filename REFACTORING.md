@@ -6,12 +6,12 @@
 
 > 認知複雜度據 JetBrains Better Highlights plugin 計算
 
-| 函式                              | 舊版本  | 新版本          | 狀態 |
-|---------------------------------|------|--------------|----|
-| `extract_placemarks_with_paths` | 187% | 33% (狀態機設計)  | ✅  |
-| `get_kml_file_path`             | 133% | 27% (拆分路徑檢查) | ✅  |
-| `main`                          | 87%  | 7% (工作流簡化)   | ✅  |
-| `extract_categories`            | 60%  | 13% (模式匹配優化) | ✅  |
+| 函式                            | 舊版本 | 新版本             | 狀態 |
+| ------------------------------- | ------ | ------------------ | ---- |
+| `extract_placemarks_with_paths` | 187%   | 33% (狀態機設計)   | ✅    |
+| `get_kml_file_path`             | 133%   | 27% (拆分路徑檢查) | ✅    |
+| `main`                          | 87%    | 7% (工作流簡化)    | ✅    |
+| `extract_categories`            | 60%    | 13% (模式匹配優化) | ✅    |
 
 **結果**：所有函式複雜度 ≤ 40%
 
@@ -35,24 +35,26 @@ src/
 └── format.rs    (233 行) - 輸出格式化
 ```
 
-**最終結構（11 個模組，入口點優化）：**
+**最終結構（13 個模組，入口點優化）：**
 
 ```
 src/
-├── main.rs           (16 行) ✨ 乾淨的入口點
-├── cli.rs            (57 行) - 命令行參數定義
+├── lib.rs            (49 行) - Library root，導出公開 API
+├── main.rs           (26 行) ✨ 乾淨的入口點（run() 模式 + 自訂 Result）
+├── cli.rs            (61 行) - 命令行參數定義
 ├── config.rs         (17 行) - 配置結構體
-├── path_resolver.rs  (46 行) - 檔案路徑解析
-├── output.rs         (86 行) - 輸出和儲存邏輯
-├── converter.rs      (34 行) - 參數轉換
-├── lib.rs            (12 行) - Library root
-├── parser.rs        (220 行) - XML 解析（狀態機）
-├── path.rs           (41 行) - 路徑提取
-├── metadata.rs       (54 行) - 軌跡詮釋資料
-└── format.rs        (233 行) - 輸出格式化
+├── path_resolver.rs  (47 行) - 檔案路徑解析
+├── output.rs         (75 行) - 輸出和儲存邏輯
+├── converter.rs      (38 行) - 參數轉換
+├── error.rs         (101 行) - 自訂錯誤類型
+├── parser.rs        (248 行) - XML 解析（狀態機）
+├── path.rs          (184 行) - 路徑提取
+├── metadata.rs      (194 行) - 軌跡詮釋資料
+├── regex.rs          (79 行) - 正規表示式模式
+└── format.rs        (294 行) - 輸出格式化
 ```
 
-**關鍵改進**：main.rs 從 233 行精簡到 **16 行**，入口點完全乾淨。
+**關鍵改進**：main.rs 從 233 行精簡到 **26 行**，入口點完全乾淨。
 
 ## 關鍵設計改進
 
@@ -163,57 +165,57 @@ for (i, value) in values.iter().enumerate() {
 
 ## 可維護性改進
 
-| 方面        | 改進          |
-|-----------|-------------|
-| **模組化**   | 6 個單一職責模組   |
-| **複雜度**   | 所有函式 < 40%  |
+| 方面           | 改進                   |
+| -------------- | ---------------------- |
+| **模組化**     | 6 個單一職責模組       |
+| **複雜度**     | 所有函式 < 40%         |
 | **程式碼重複** | 減少（特別是欄寬計算） |
-| **可讀性**   | 清晰的函式名和流程   |
-| **可測試性**  | 各模組可獨立測試    |
+| **可讀性**     | 清晰的函式名和流程     |
+| **可測試性**   | 各模組可獨立測試       |
 
 ## 後續建議
 
 1. **單元測試** ✅ **已完成**
 
    為各模組添加 #[cfg(test)] 測試模組
-   
+
    **實現細節**：
-    - ✅ **path.rs**：6 個單元測試
-      - `test_extract_categories_full_path()` - 完整路徑提取
-      - `test_extract_categories_with_spaces()` - 空格處理
-      - `test_extract_categories_with_three_meaningful_elements()` - 多層路徑
-      - `test_extract_categories_single_non_root_element()` - 月份格式檢測
-      - `test_extract_categories_empty_path()` - 空路徑邊界
-      
-    - ✅ **metadata.rs**：8 個單元測試
-      - `test_duration_seconds()` - 時間計算（正常情況）
-      - `test_duration_same_time()` - 相同時間點
-      - `test_duration_negative()` - 反向時間差
-      - `test_calculate_distance_multiple_points()` - 多點距離計算
-      - `test_calculate_distance_single_point()` - 單點距離
-      - `test_calculate_distance_two_points()` - 雙點距離
-      - `test_metadata_creation()` - 結構體創建
-      
+    - ✅ **path.rs**：5 個單元測試
+        - `test_extract_categories_full_path()` - 完整路徑提取
+        - `test_extract_categories_with_spaces()` - 空格處理
+        - `test_extract_categories_with_three_meaningful_elements()` - 多層路徑
+        - `test_extract_categories_single_non_root_element()` - 月份格式檢測
+        - `test_extract_categories_empty_path()` - 空路徑邊界
+
+    - ✅ **metadata.rs**：7 個單元測試
+        - `test_duration_seconds()` - 時間計算（正常情況）
+        - `test_duration_same_time()` - 相同時間點
+        - `test_duration_negative()` - 反向時間差
+        - `test_calculate_distance_multiple_points()` - 多點距離計算
+        - `test_calculate_distance_single_point()` - 單點距離
+        - `test_calculate_distance_two_points()` - 雙點距離
+        - `test_metadata_creation()` - 結構體創建
+
     - ✅ **regex.rs**：7 個單元測試
-      - `test_start_time_pattern_matches()` - 開始時間匹配
-      - `test_start_time_pattern_captures()` - 開始時間捕獲
-      - `test_start_time_pattern_with_spaces()` - 空格容錯
-      - `test_end_time_pattern_matches()` - 結束時間匹配
-      - `test_end_time_pattern_captures()` - 結束時間捕獲
-      - `test_end_time_pattern_without_br()` - 換行字元處理
-      - `test_both_patterns_in_html()` - 組合匹配
-      
+        - `test_start_time_pattern_matches()` - 開始時間匹配
+        - `test_start_time_pattern_captures()` - 開始時間捕獲
+        - `test_start_time_pattern_with_spaces()` - 空格容錯
+        - `test_end_time_pattern_matches()` - 結束時間匹配
+        - `test_end_time_pattern_captures()` - 結束時間捕獲
+        - `test_end_time_pattern_without_br()` - 換行字元處理
+        - `test_both_patterns_in_html()` - 組合匹配
+
     - ✅ **error.rs**：5 個單元測試
-      - `test_analyzer_error_display()` - 錯誤顯示
-      - `test_analyzer_error_parsing()` - 解析錯誤訊息
-      - `test_analyzer_error_from_string()` - 字串轉換
-      - `test_analyzer_error_from_io_error()` - IO 錯誤轉換
-      - `test_result_type_alias()` - Result 類型別名
-      
+        - `test_analyzer_error_display()` - 錯誤顯示
+        - `test_analyzer_error_parsing()` - 解析錯誤訊息
+        - `test_analyzer_error_from_string()` - 字串轉換
+        - `test_analyzer_error_from_io_error()` - IO 錯誤轉換
+        - `test_result_type_alias()` - Result 類型別名
+
    **測試統計**：
-   - 總測試數：24
-   - 覆蓋模組：4（path, metadata, regex, error）
-   - 全部通過：✅
+    - 總測試數：24
+    - 覆蓋模組：4（path, metadata, regex, error）
+    - 全部通過：✅
 
 2. **文件註解** ✅ **已完成**
 
@@ -271,4 +273,3 @@ for (i, value) in values.iter().enumerate() {
 - [README.md](./README.md) - 快速開始與使用範例
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - 詳細的模組結構說明
 - [PERFORMANCE.md](./PERFORMANCE.md) - 效能優化技術詳解
-

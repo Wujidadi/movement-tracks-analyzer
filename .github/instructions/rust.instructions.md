@@ -19,23 +19,24 @@ applyTo: "src/**,tests/**,Cargo.toml"
 ## 架構地圖
 
 ```
-src/
-├── main.rs                    # 💎 CLI 主程序（16 行）- 清潔的入口，呼叫各功能組成資料流
-├── lib.rs                     # 函式庫根，導出公開 API
-├── cli.rs                     # 命令行參數定義（Clap derive 宏）
-├── config.rs                  # 配置結構體，集中參數驗證與轉換邏輯
-├── path_resolver.rs           # 檔案路徑解析，支援預設檔案自動尋找
-├── converter.rs               # 參數轉換，將 CLI args 轉為應用配置
-├── error.rs                   # 自訂錯誤類型
-├── regex.rs                   # 正規表示式模式集中定義
-├── parser.rs                  # 流式 XML 解析（狀態機），避免全檔案載入記憶體
-├── path.rs                    # GPS 軌跡路徑提取與計算邏輯
-├── metadata.rs                # 軌跡詮釋資料結構
-└── format.rs                  # 輸出格式化（JSON、CSV、TSV、表格）
-tests/
-├── fixtures/                  # 測試用 KML 檔案
-│   └── tracks.kml
-└── integration_tests.rs       # 集成測試（可選）
+.
+├── src/
+│   ├── lib.rs                     # 函式庫根，導出公開 API（49 行）
+│   ├── main.rs                    # CLI 主程序（26 行）- run() 模式入口，搭配自訂 Result 型態
+│   ├── cli.rs                     # 命令行參數定義（Clap derive 宏）
+│   ├── config.rs                  # 配置結構體（執行期設定）
+│   ├── path_resolver.rs           # 檔案路徑解析，支援預設檔案自動尋找
+│   ├── converter.rs               # 參數轉換，將 CLI args 轉為應用配置
+│   ├── output.rs                  # 輸出結果（shell / file）與檔案路徑判定
+│   ├── error.rs                   # 自訂錯誤類型（AnalyzerError 枚舉 + Result<T> 別名）
+│   ├── regex.rs                   # 正規表示式模式集中定義
+│   ├── parser.rs                  # 流式 XML 解析（狀態機），避免全檔案載入記憶體
+│   ├── path.rs                    # GPS 軌跡路徑提取與分類邏輯
+│   ├── metadata.rs                # 軌跡詮釋資料結構（TrackMetadata）
+│   └── format.rs                  # 輸出格式化（JSON、CSV、TSV、表格）
+└── tests/
+    └── fixtures/                  # 測試用 KML 檔案
+        └── tracks.kml
 ```
 
 ## 模組設計原則
@@ -43,12 +44,12 @@ tests/
 ### 單一職責
 
 - 每個模組應只負責一個功能領域。
-- `cli.rs` 負責命令行定義，`converter.rs` 負責轉換邏輯，`config.rs` 負責配置。
+- `cli.rs` 負責命令行定義，`converter.rs` 負責轉換邏輯，`config.rs` 負責配置結構，`output.rs` 負責輸出流程。
 
 ### 流式解析架構
 
 - `parser.rs` 採用狀態機模式進行流式 XML 解析，避免全檔案載入記憶體。
-- 對大型 KML 檔案（數百 MB）的性能至關重要，詳見 `PERFORMANCE.md`。
+- 對大型 KML 檔案（數百 MB）的效能至關重要，詳見 `PERFORMANCE.md`。
 
 ### 公開 API 與私有實現
 
@@ -63,7 +64,7 @@ tests/
 | -------- | ----------------------------------------------------------- |
 | 模組名   | `snake_case`（如 `path_resolver`）                          |
 | 結構體名 | `PascalCase`（如 `Config`、`TrackMetadata`）                |
-| 函數名   | `snake_case`（如 `parse_kml`）                              |
+| 函數名   | `snake_case`（如 `extract_placemarks_with_paths`）          |
 | 常數名   | `SCREAMING_SNAKE_CASE`（如 `DEFAULT_FILE_NAME`）            |
 | 型別參數 | `PascalCase`，通常用單字母（如 `T`）或特定名稱（如 `Item`） |
 
@@ -76,7 +77,7 @@ tests/
 ### 錯誤處理
 
 - 使用 `Result<T, E>` 作為函數回傳型別，避免 `unwrap()` 或 `panic!()`。
-- `src/error.rs` 中定義專案級別的錯誤類型，使用 `thiserror` 或自訂實作。
+- `src/error.rs` 中定義專案級別的錯誤類型 `AnalyzerError`，手動實作 `Display`、`Error`、`From` traits，搭配 `Result<T>` 型態別名。
 - 錯誤訊息應清楚、可操作，協助使用者理解發生的問題。
 
 ## 修改入口
@@ -90,22 +91,23 @@ tests/
 ### 修改 KML 解析邏輯
 
 1. 若修改狀態機流程，編輯 `src/parser.rs`
-2. 若修改軌跡計算（距離、時間等），編輯 `src/path.rs`
-3. 若修改資料結構，更新 `src/metadata.rs`
-4. 使用 `tests/fixtures/tracks.kml` 驗證
+2. 若修改軌跡計算（距離、時間等），編輯 `src/metadata.rs`
+3. 若修改路徑提取與分類邏輯，編輯 `src/path.rs`
+4. 若修改資料結構，更新 `src/metadata.rs`
+5. 使用 `tests/fixtures/tracks.kml` 驗證
 
 ### 添加新的輸出格式
 
-1. 在 `src/format.rs` 中添加格式化函數
-2. 在 `src/cli.rs` 中的 `OutputFormat` 枚舉添加新變體
-3. 在 `src/converter.rs` 中映射新格式
+1. 在 `src/format.rs` 中的 `OutputFormat` 枚舉添加新變體，並添加格式化函數
+2. 在 `src/cli.rs` 中的 `OutputFormatArg` 枚舉添加對應的 CLI 變體
+3. 在 `src/converter.rs` 中映射新格式（`OutputFormatArg` → `OutputFormat`）
 4. 編寫測試驗證輸出
 
-### 改進性能
+### 改進效能
 
 1. 閱讀 `PERFORMANCE.md` 了解既有的優化方案
 2. 若涉及記憶體或執行速度改進，應先評估影響範圍
-3. 性能改動後執行 `cargo build --release` 與效能基準測試
+3. 效能改動後執行 `cargo build --release` 與效能基準測試
 
 ## 測試規範
 
@@ -116,7 +118,7 @@ tests/
 ```rust
 // src/path.rs
 
-pub fn calculate_distance(coords: &[(f64, f64)]) -> f64 {
+pub fn extract_categories(folder_path: &[String]) -> (String, String, String, String) {
     // ... 實作
 }
 
@@ -125,13 +127,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_calculate_distance_empty() {
-        assert_eq!(calculate_distance(&[]), 0.0);
+    fn test_extract_categories_empty_path() {
+        let path: Vec<String> = vec![];
+        let (cat, act, year, month) = extract_categories(&path);
+        assert_eq!((cat.as_str(), act.as_str(), year.as_str(), month.as_str()), ("", "", "", ""));
     }
 
     #[test]
-    fn test_calculate_distance_single_point() {
-        assert_eq!(calculate_distance(&[(1.0, 2.0)]), 0.0);
+    fn test_extract_categories_full_path() {
+        let path = vec![
+            "移動軌跡".to_string(), "戶外運動".to_string(),
+            "步行".to_string(), "2026".to_string(), "2026-03".to_string(),
+        ];
+        let (cat, act, year, month) = extract_categories(&path);
+        assert_eq!(cat, "戶外運動");
+        assert_eq!(month, "2026-03");
     }
 }
 ```
@@ -143,12 +153,13 @@ mod tests {
 ```rust
 // tests/kml_parsing.rs
 
-use movement_tracks_analyzer::parser::parse_kml;
+use movement_tracks_analyzer::extract_placemarks_with_paths;
+use std::path::PathBuf;
 
 #[test]
 fn test_parse_sample_kml() {
-    let path = "tests/fixtures/tracks.kml";
-    let result = parse_kml(path);
+    let path = PathBuf::from("tests/fixtures/tracks.kml");
+    let result = extract_placemarks_with_paths(&path);
     assert!(result.is_ok());
     let data = result.unwrap();
     assert!(!data.is_empty());
@@ -188,7 +199,8 @@ cargo test -- --nocapture
 - 公開函數應包含文件註解，說明用途、參數、回傳值。
 - 複雜的演算法應添加邏輯註解，解釋實現方式。
 - 若模組改動涉及架構層面，應更新 `ARCHITECTURE.md`。
-- 若涉及性能相關改動，應更新 `PERFORMANCE.md`。
+- 若涉及效能相關改動，應更新 `PERFORMANCE.md`。
+- 若涉及重構相關改動，應更新 `REFACTORING.md`。
 
 ## 最佳實踐
 

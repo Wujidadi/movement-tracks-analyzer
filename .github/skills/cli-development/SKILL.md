@@ -54,76 +54,68 @@ output::output_results() ← 格式化與輸出
 // src/cli.rs
 
 use clap::{Parser, ValueEnum};
+use std::path::PathBuf;
 
-/// GPS 軌跡分析工具
-///
-/// 用於解析 KML 檔案、提取軌跡資訊並輸出為多種格式。
+/// 使用說明訊息模板
+pub const HELP_TEMPLATE: &str = r#"Parse KML GPS tracks and generate analysis reports
+
+Usage: {usage}
+
+Options:
+{options}
+"#;
+
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(name = "Movement Tracks Analyzer")]
+#[command(about = "Parse KML GPS tracks and generate analysis reports", long_about = None)]
+#[command(help_template = HELP_TEMPLATE)]
+#[command(override_usage = "movement_tracks_analyzer [OPTIONS]")]
 pub struct Args {
-    /// KML 檔案路徑
-    ///
-    /// 若未提供，將尋找預設檔案：
-    /// 1. 移動軌跡.kml
-    /// 2. Movement Tracks.kml
+    // KML 檔案路徑（優先級：命令行參數 > 執行檔目錄 > 當前目錄）
+    /// KML file path (priority: command line > executable directory > current directory)
     #[arg(short, long, value_name = "PATH")]
-    pub file: Option<String>,
+    pub file: Option<PathBuf>,
 
-    /// 輸出類型
-    #[arg(short, long, value_enum, default_value = "file")]
-    pub output: OutputMode,
+    // 輸出目標：shell（命令行）或 file（檔案），預設為 file
+    /// Output target
+    #[arg(short = 'o', long, default_value = "file", value_name = "OUTPUT")]
+    pub output: OutputTypeArg,
 
-    /// 輸出格式
-    #[arg(short, long, value_enum, default_value = "csv")]
-    pub format: OutputFormat,
+    // 輸出格式：json、csv、tsv 或 table，預設為 csv
+    /// Output format
+    #[arg(short = 'm', long, default_value = "csv", value_name = "FORMAT")]
+    pub format: OutputFormatArg,
 
-    /// 輸出檔案路徑或目錄
-    ///
-    /// 若為目錄，自動生成檔案名稱
-    /// 若為檔案路徑，直接使用
-    #[arg(short, long, value_name = "PATH")]
-    pub export: Option<String>,
-
-    /// 顯示進度資訊
-    #[arg(short, long)]
-    pub verbose: bool,
+    // 輸出檔案路徑（支持目錄或完整檔案路徑，預設為當前目錄）
+    /// Output file path
+    #[arg(short = 'x', long, value_name = "PATH")]
+    pub export: Option<PathBuf>,
 }
 
-/// 輸出模式
-#[derive(Debug, Clone, ValueEnum)]
-pub enum OutputMode {
-    /// 輸出到命令行
-    #[value(name = "shell")]
+/// 輸出目標枚舉
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum OutputTypeArg {
+    /// 命令行輸出
     Shell,
     /// 輸出到檔案
-    #[value(name = "file")]
     File,
 }
 
-/// 輸出格式
-#[derive(Debug, Clone, ValueEnum)]
-pub enum OutputFormat {
+/// 輸出格式枚舉
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum OutputFormatArg {
     /// JSON 格式
-    #[value(name = "json")]
     Json,
     /// CSV 格式
-    #[value(name = "csv")]
     Csv,
     /// TSV 格式
-    #[value(name = "tsv")]
     Tsv,
-    /// 表格格式
-    #[value(name = "table")]
+    /// 表格格式（命令行）
     Table,
 }
-
-impl Args {
-    /// 解析命令行參數
-    pub fn parse() -> Self {
-        <Self as Parser>::parse()
-    }
-}
 ```
+
+> **注意**：CLI 層的枚舉命名為 `OutputTypeArg` / `OutputFormatArg`，與函式庫 crate 的 `OutputType` / `OutputFormat` 區隔，避免名稱衝突。
 
 ### Clap Derive 宏常用屬性
 
@@ -148,50 +140,42 @@ impl Args {
 ```rust
 // src/converter.rs
 
-use crate::cli::{Args, OutputFormat, OutputMode};
-use crate::config::Config;
-use crate::error::ApplicationError;
+use crate::{
+    cli::{Args, OutputFormatArg, OutputTypeArg},
+    config::{Config, OutputType},
+    path_resolver::resolve_kml_file,
+};
+use movement_tracks_analyzer::{OutputFormat, Result};
 
-/// 將命令行參數轉換為應用配置
-pub fn build_config(args: Args) -> Result<Config, ApplicationError> {
-    let kml_file = resolve_kml_path(&args.file)?;
+/// 從 CLI 參數建立設定
+pub fn build_config(args: Args) -> Result<Config> {
+    let output_type = match args.output {
+        OutputTypeArg::Shell => OutputType::Shell,
+        OutputTypeArg::File => OutputType::File,
+    };
 
-    let export_path = match (&args.output, &args.export) {
-        (OutputMode::Shell, Some(path)) => {
-            return Err(ApplicationError::InvalidArgument(
-                "shell 模式不支援 --export 參數".to_string(),
-            ));
-        }
-        (OutputMode::File, path) => path.clone(),
-        _ => None,
+    let format = match args.format {
+        OutputFormatArg::Json => OutputFormat::Json,
+        OutputFormatArg::Csv => OutputFormat::Csv,
+        OutputFormatArg::Tsv => OutputFormat::Tsv,
+        OutputFormatArg::Table => OutputFormat::Table,
+    };
+
+    // 當 format="table" 且 output="file" 時，自動使用 csv 格式
+    let format = if matches!(args.format, OutputFormatArg::Table)
+        && matches!(output_type, OutputType::File)
+    {
+        OutputFormat::Csv
+    } else {
+        format
     };
 
     Ok(Config {
-        kml_file,
-        output_mode: args.output,
-        output_format: args.format,
-        export_path,
-        verbose: args.verbose,
+        kml_file: resolve_kml_file(args.file)?,
+        output_type,
+        format,
+        export_path: args.export,
     })
-}
-
-/// 解析 KML 檔案路徑
-fn resolve_kml_path(provided: &Option<String>) -> Result<String, ApplicationError> {
-    if let Some(path) = provided {
-        return Ok(path.clone());
-    }
-
-    // 尋找預設檔案
-    let defaults = ["移動軌跡.kml", "Movement Tracks.kml"];
-    for default_file in &defaults {
-        if std::path::Path::new(default_file).exists() {
-            return Ok(default_file.to_string());
-        }
-    }
-
-    Err(ApplicationError::FileNotFound(
-        "未找到 KML 檔案。請使用 -f 指定檔案路徑或確保 '移動軌跡.kml' 或 'Movement Tracks.kml' 存在於當前目錄。".to_string(),
-    ))
 }
 ```
 
@@ -201,58 +185,37 @@ fn resolve_kml_path(provided: &Option<String>) -> Result<String, ApplicationErro
 
 ### 設計原則
 
-配置應集中於 `config.rs`，包含驗證邏輯：
+配置應集中於 `config.rs`，結構簡潔：
 
 ```rust
 // src/config.rs
 
-use crate::cli::{OutputFormat, OutputMode};
-use std::path::{Path, PathBuf};
+use movement_tracks_analyzer::OutputFormat;
+use std::path::PathBuf;
 
-/// 應用配置
-#[derive(Debug, Clone)]
+/// CLI 參數設定
 pub struct Config {
     /// KML 檔案路徑（已驗證存在）
-    pub kml_file: String,
+    pub kml_file: PathBuf,
 
-    /// 輸出模式
-    pub output_mode: OutputMode,
+    /// 輸出類型
+    pub output_type: OutputType,
 
     /// 輸出格式
-    pub output_format: OutputFormat,
+    pub format: OutputFormat,
 
     /// 輸出檔案路徑（可選）
-    pub export_path: Option<String>,
-
-    /// 冗長模式
-    pub verbose: bool,
+    pub export_path: Option<PathBuf>,
 }
 
-impl Config {
-    /// 取得完整的輸出檔案路徑
-    pub fn get_output_path(&self, default_name: &str) -> Result<PathBuf, String> {
-        match &self.export_path {
-            None => Ok(PathBuf::from(default_name)),
-            Some(path) => {
-                let p = Path::new(path);
-                if p.is_dir() {
-                    Ok(p.join(default_name))
-                } else {
-                    Ok(p.to_path_buf())
-                }
-            }
-        }
-    }
-
-    /// 驗證配置的合法性
-    pub fn validate(&self) -> Result<(), String> {
-        if !Path::new(&self.kml_file).exists() {
-            return Err(format!("KML 檔案不存在: {}", self.kml_file));
-        }
-        Ok(())
-    }
+#[derive(Debug, Clone, Copy)]
+pub enum OutputType {
+    Shell,
+    File,
 }
 ```
+
+> **注意**：`Config` 引用函式庫 crate 的 `OutputFormat`，而非 CLI 層的 `OutputFormatArg`。轉換邏輯集中在 `converter.rs`。
 
 ---
 
@@ -263,70 +226,69 @@ impl Config {
 ```rust
 // src/main.rs
 
-use movement_tracks_analyzer::{
-    cli, converter, output,
-    parser::extract_placemarks_with_paths,
-};
+mod cli;
+mod config;
+mod converter;
+mod output;
+mod path_resolver;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 解析命令行參數
-    let args = cli::Args::parse();
+use clap::Parser;
+use cli::Args;
+use converter::build_config;
+use movement_tracks_analyzer::extract_placemarks_with_paths;
+use output::output_results;
 
-    // 轉換為配置
-    let config = converter::build_config(args)?;
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
+}
 
-    // 驗證配置
-    config.validate()?;
-
-    // 提取軌跡資料
+fn run() -> movement_tracks_analyzer::Result<()> {
+    let args = Args::parse();
+    let config = build_config(args)?;
     let placemarks = extract_placemarks_with_paths(&config.kml_file)?;
-
-    // 輸出結果
-    output::output_results(&placemarks, &config)?;
-
-    Ok(())
+    output_results(&placemarks, &config)
 }
 ```
 
-**特點**：清潔、簡短、易讀
+**特點**：
+- 採用 `run()` 函式模式，將錯誤處理集中在 `main()` 中
+- 使用自訂 `Result` 型態（`movement_tracks_analyzer::Result<()>`）
+- 二進位 crate 透過 `mod` 宣告引入自己的模組，透過 `use movement_tracks_analyzer::...` 引用函式庫 crate
 
 ---
 
-## 使用者互動與驗證
+## 使用者互動與錯誤處理
 
-### 友善的錯誤訊息
+### 錯誤處理模式
+
+專案使用 `run()` 函式模式集中處理錯誤，錯誤由 `eprintln!` 輸出後以非零狀態碼退出：
 
 ```rust
 // src/main.rs
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = cli::Args::parse();
-    let config = converter::build_config(args)?;
-
-    match config.validate() {
-        Ok(_) => {
-            // 繼續處理
-        }
-        Err(e) => {
-            eprintln!("❌ 設定錯誤: {}", e);
-            eprintln!("\n使用 '--help' 獲取使用說明。");
-            std::process::exit(1);
-        }
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
     }
-
-    // ...後續邏輯
-    Ok(())
 }
 ```
 
-### 進度提示
+自訂 `AnalyzerError` 提供清晰的錯誤訊息（如 `File not found: /path/to/file.kml`），`From` trait 實作支援 `?` 運算子自動轉換。
 
-當 `--verbose` 標誌被設定時：
+### 路徑解析提示
+
+當找到預設 KML 檔案時，程式會輸出提示訊息：
 
 ```rust
-if config.verbose {
-eprintln!("📂 讀取檔案: {}", config.kml_file);
-eprintln!("⚙️  輸出格式: {:?}", config.output_format);
+// src/path_resolver.rs
+
+fn check_exe_directory() -> Option<PathBuf> {
+    // ...
+    .inspect(|path| println!("Using default KML file: {}", path.display()))
 }
 ```
 
@@ -340,14 +302,14 @@ eprintln!("⚙️  輸出格式: {:?}", config.output_format);
 # 預設行為：尋找 KML 檔案、輸出到 CSV
 ./movement_tracks_analyzer
 
-# 指定檔案，輸出為 JSON
+# 指定檔案，輸出為 JSON 到命令行
 ./movement_tracks_analyzer -f my_tracks.kml -m json -o shell
 
 # 指定檔案與輸出路徑
-./movement_tracks_analyzer --file tracks.kml --format table --export output.txt
+./movement_tracks_analyzer --file tracks.kml --format csv --export /tmp/output.csv
 
-# 詳細模式
-./movement_tracks_analyzer --verbose
+# 輸出表格到命令行
+./movement_tracks_analyzer -f tracks.kml -o shell -m table
 ```
 
 ### 顯示說明
@@ -377,7 +339,7 @@ pub struct Args {
 ### 步驟 2：在 converter.rs 中處理轉換
 
 ```rust
-pub fn build_config(args: Args) -> Result<Config, ApplicationError> {
+pub fn build_config(args: Args) -> Result<Config> {
     // ...既有邏輯...
 
     if args.new_param {
@@ -417,13 +379,13 @@ mod tests {
     #[test]
     fn test_default_output_format() {
         let args = Args::try_parse_from(vec!["prog"]).unwrap();
-        assert_eq!(format!("{:?}", args.format), "Csv");
+        assert!(matches!(args.format, OutputFormatArg::Csv));
     }
 
     #[test]
     fn test_custom_file_path() {
         let args = Args::try_parse_from(vec!["prog", "-f", "custom.kml"]).unwrap();
-        assert_eq!(args.file, Some("custom.kml".to_string()));
+        assert_eq!(args.file, Some(PathBuf::from("custom.kml")));
     }
 }
 ```

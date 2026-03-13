@@ -1,6 +1,6 @@
 ---
 name: kml-parsing
-description: 本專案的 KML 檔案解析實現指南。說明流式 XML 解析的狀態機設計、座標點提取、軌跡詮釋資料結構化、性能優化與邊界情況處理。當使用者涉及 KML 解析改進、座標計算、時間處理或大型檔案性能時參照。
+description: 本專案的 KML 檔案解析實現指南。說明流式 XML 解析的狀態機設計、座標點提取、軌跡詮釋資料結構化、效能優化與邊界情況處理。當使用者涉及 KML 解析改進、座標計算、時間處理或大型檔案效能時參照。
 ---
 
 # KML 檔案解析指南
@@ -10,7 +10,7 @@ description: 本專案的 KML 檔案解析實現指南。說明流式 XML 解析
 | 工具      | 版本 | 用途                                                |
 | --------- | ---- | --------------------------------------------------- |
 | quick-xml | 0.39 | **流式 XML 解析**；狀態機模式，避免全檔案載入記憶體 |
-| regex     | 1.12 | 正規表示式模式，用於座標與時間字串解析              |
+| regex     | 1.12 | 正規表示式模式，用於 Description 內的時間字串解析   |
 | chrono    | 0.4  | 時間戳與日期時間處理                                |
 | serde     | 1.0  | 序列化/反序列化軌跡資料結構                         |
 
@@ -60,7 +60,7 @@ description: 本專案的 KML 檔案解析實現指南。說明流式 XML 解析
 ### 為什麼使用流式解析
 
 - **記憶體效率**：大型 KML 檔案（數百 MB）無需全部載入記憶體
-- **性能**：線性掃描，無需多次遍歷
+- **效能**：線性掃描，無需多次遍歷
 - **可擴展性**：支援任意大小的檔案
 
 ### 狀態機設計
@@ -90,180 +90,166 @@ description: 本專案的 KML 檔案解析實現指南。說明流式 XML 解析
 ```rust
 // src/parser.rs
 
-use quick_xml::events::{Event, BytesStart, BytesText};
-use quick_xml::Reader;
-use crate::metadata::TrackMetadata;
-use crate::path::GpsPoint;
-use crate::regex::{parse_coordinates, extract_metadata};
-use std::io::BufReader;
-use std::fs::File;
+use crate::{extract_categories, Result, TrackMetadata, END_TIME_PATTERN, START_TIME_PATTERN};
+use chrono::NaiveDateTime;
+use quick_xml::{events::Event, Reader};
+use std::{fs, io::BufReader, path::PathBuf};
 
-/// 從 KML 檔案解析軌跡資料
-pub fn extract_placemarks_with_paths(file_path: &str) -> Result<Vec<TrackMetadata>, Box<dyn std::error::Error>> {
-    let file = File::open(file_path)?;
+/// 從 KML 檔案中提取所有 Placemark 軌跡
+pub fn extract_placemarks_with_paths(
+    file_path: &PathBuf,
+) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let file = fs::File::open(file_path)?;
     let reader = BufReader::new(file);
     let mut xml_reader = Reader::from_reader(reader);
 
-    let mut placemarks = Vec::new();
-    let mut current_placemark = TrackMetadata::default();
-    let mut in_placemark = false;
-    let mut in_coordinates = false;
+    let mut results = Vec::new();
     let mut buf = Vec::new();
+    let mut folder_stack: Vec<String> = Vec::new();
+    let mut parser_state = ParserState::default();
 
     loop {
-        match xml_reader.read_event_into(&mut buf)? {
-            Event::Start(ref e) => {
-                match e.name().as_ref() {
-                    b"Placemark" => {
-                        in_placemark = true;
-                        current_placemark = TrackMetadata::default();
-                    }
-                    b"coordinates" if in_placemark => {
-                        in_coordinates = true;
-                    }
-                    _ => {}
+        match xml_reader.read_event_into(&mut buf) {
+            Ok(Event::Start(elem)) => {
+                let tag_name = String::from_utf8_lossy(elem.name().as_ref()).to_string();
+                handle_start_tag(&tag_name, &mut folder_stack, &mut parser_state);
+            }
+            Ok(Event::End(elem)) => {
+                let tag_name = String::from_utf8_lossy(elem.name().as_ref()).to_string();
+                handle_end_tag(&tag_name, &mut folder_stack, &mut parser_state, &mut results)?;
+            }
+            Ok(Event::Text(text)) => {
+                let content = String::from_utf8_lossy(text.as_ref()).to_string();
+                parser_state.append_text(&content, &mut folder_stack);
+            }
+            Ok(Event::CData(cdata)) => {
+                let content = String::from_utf8_lossy(cdata.as_ref()).to_string();
+                if parser_state.in_description {
+                    parser_state.current_description.push_str(&content);
                 }
             }
-
-            Event::End(ref e) => {
-                match e.name().as_ref() {
-                    b"Placemark" if in_placemark => {
-                        if !current_placemark.points.is_empty() {
-                            placemarks.push(current_placemark.clone());
-                        }
-                        in_placemark = false;
-                    }
-                    b"coordinates" if in_coordinates => {
-                        in_coordinates = false;
-                    }
-                    _ => {}
-                }
+            Ok(Event::Eof) => break,
+            Err(e) => {
+                eprintln!("KML parsing error: {}", e);
+                break;
             }
-
-            Event::Text(ref e) => {
-                let text = e.unescape()?.into_owned();
-
-                if in_placemark {
-                    if in_coordinates {
-                        // 解析座標
-                        if let Ok(points) = parse_coordinates(&text) {
-                            current_placemark.points.extend(points);
-                        }
-                    }
-                }
-            }
-
-            Event::Eof => break,
             _ => {}
         }
-
         buf.clear();
     }
 
-    Ok(placemarks)
+    Ok(results)
 }
 ```
 
-### 狀態管理
+### 狀態機設計
 
-- `in_placemark`：當前是否在 `<Placemark>` 內
-- `in_coordinates`：當前是否在 `<coordinates>` 內
-- `current_placemark`：累積中的軌跡資料
-- `buf`：XML 事件緩衝區（提高性能）
+解析器使用 `ParserState` 結構體集中管理所有狀態旗標與暫存資料：
+
+```rust
+#[derive(Debug, Default)]
+struct ParserState {
+    in_placemark: bool,
+    in_name: bool,
+    in_description: bool,
+    in_coordinates: bool,
+    in_folder_name: bool,
+    current_name: String,
+    current_description: String,
+    current_coordinates_str: String,
+}
+
+impl ParserState {
+    fn reset_placemark(&mut self) { /* 清除暫存欄位 */ }
+    fn append_text(&mut self, content: &str, folder_stack: &mut Vec<String>) { /* 依狀態分派文字 */ }
+}
+```
+
+- `ParserState`：集中管理所有解析狀態（布林旗標 + 暫存字串）
+- `folder_stack`：追蹤當前 Folder 層級，用於提取分類路徑
+- `handle_start_tag()` / `handle_end_tag()`：獨立函式處理 XML 標籤開閉事件
+- `buf`：XML 事件緩衝區（提高效能）
 
 ---
 
-## 座標與時間解析（regex.rs）
+## 座標與時間解析
 
-### 座標解析
+### 座標解析（parser.rs）
+
+座標解析使用字串切割（非正規表示式），定義於 `parser.rs` 的 `parse_coordinates()` 私有函式：
+
+```rust
+// src/parser.rs
+
+/// 解析座標字串為 (lon, lat) 對
+fn parse_coordinates(coords_str: &str) -> Result<Vec<(f64, f64)>> {
+    Ok(coords_str
+        .trim()
+        .split_whitespace()
+        .filter_map(|coord_str| {
+            let parts: Vec<&str> = coord_str.split(',').collect();
+            if parts.len() >= 2 {
+                let lon = parts[0].parse().ok()?;
+                let lat = parts[1].parse().ok()?;
+                Some((lon, lat))
+            } else {
+                None
+            }
+        })
+        .collect())
+}
+```
+
+- 座標格式：`lon,lat,elevation`（空白分隔多個座標點）
+- 忽略高度（elevation），僅取經度和緯度
+- 無效座標點靜默跳過（`filter_map`）
+
+### 時間提取（parser.rs + regex.rs）
+
+時間從 `<description>` 中的 HTML 提取，使用預編譯正規表示式：
 
 ```rust
 // src/regex.rs
 
-use regex::Regex;
 use once_cell::sync::Lazy;
-use crate::path::GpsPoint;
+use regex::Regex;
 
-/// 座標分隔符正規表示式
-static COORD_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(-?\d+\.\d+),(-?\d+\.\d+),(-?\d+(?:\.\d+)?)?").unwrap()
+const DATETIME_PATTERN: &str = r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})";
+
+fn create_time_pattern(label: &str, has_br: bool) -> String {
+    let br = if has_br { r"<br />" } else { "" };
+    format!(r"<b>\s*{}\s*:\s*</b>\s*{}{}", label, DATETIME_PATTERN, br)
+}
+
+pub static START_TIME_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(&create_time_pattern("Start", true)).unwrap()
 });
 
-/// 解析座標字串為 GPS 點集合
-pub fn parse_coordinates(text: &str) -> Result<Vec<GpsPoint>, String> {
-    let mut points = Vec::new();
-
-    for caps in COORD_PATTERN.captures_iter(text) {
-        let lon: f64 = caps[1].parse()
-            .map_err(|_| "經度解析失敗")?;
-        let lat: f64 = caps[2].parse()
-            .map_err(|_| "緯度解析失敗")?;
-        let elevation: f64 = caps.get(3)
-            .map(|m| m.as_str().parse())
-            .transpose()
-            .map_err(|_| "高度解析失敗")?
-            .unwrap_or(0.0);
-
-        points.push(GpsPoint {
-            latitude: lat,
-            longitude: lon,
-            elevation,
-        });
-    }
-
-    if points.is_empty() {
-        return Err("未找到座標點".to_string());
-    }
-
-    Ok(points)
-}
-
-/// 從描述欄提取分類與活動
-pub fn extract_metadata(description: &str) -> (Option<String>, Option<String>) {
-    let mut category = None;
-    let mut activity = None;
-
-    for line in description.lines() {
-        if let Some(value) = line.strip_prefix("分類:") {
-            category = Some(value.trim().to_string());
-        }
-        if let Some(value) = line.strip_prefix("活動:") {
-            activity = Some(value.trim().to_string());
-        }
-    }
-
-    (category, activity)
-}
+pub static END_TIME_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(&create_time_pattern("End", false)).unwrap()
+});
 ```
-
-### 時間字串解析
 
 ```rust
-use chrono::NaiveDateTime;
+// src/parser.rs
 
-/// 從軌跡名稱或時間戳解析日期時間
-pub fn parse_timestamp(name: &str) -> Option<chrono::NaiveDateTime> {
-    // 嘗試從名稱中提取日期（如 "2024-01-15 步行"）
-    let date_pattern = Lazy::new(|| {
-        Regex::new(r"(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):?(\d{2})?").unwrap()
-    });
+/// 從 KML Description 中提取開始和結束時間
+fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
+    let start_match = START_TIME_PATTERN.captures(description)?;
+    let end_match = END_TIME_PATTERN.captures(description)?;
 
-    if let Some(caps) = date_pattern.captures(name) {
-        if let Ok(dt) = NaiveDateTime::parse_from_str(
-            &format!("{}-{}-{} {}:{}:00",
-                     &caps[1], &caps[2], &caps[3],
-                     caps.get(4).map(|m| m.as_str()).unwrap_or("00"),
-                     caps.get(5).map(|m| m.as_str()).unwrap_or("00")
-            ),
-            "%Y-%m-%d %H:%M:%S"
-        ) {
-            return Some(dt);
-        }
-    }
+    let start_str = start_match.get(1)?.as_str();
+    let end_str = end_match.get(1)?.as_str();
 
-    None
+    let start = NaiveDateTime::parse_from_str(start_str, "%Y-%m-%d %H:%M:%S").ok()?;
+    let end = NaiveDateTime::parse_from_str(end_str, "%Y-%m-%d %H:%M:%S").ok()?;
+
+    Some((start, end))
 }
 ```
+
+- 正規表示式使用 `once_cell::sync::Lazy` 全域快取，僅編譯一次
+- Description 內容可能包含 CDATA，解析器已處理 `Event::CData` 事件
 
 ---
 
@@ -275,89 +261,89 @@ pub fn parse_timestamp(name: &str) -> Option<chrono::NaiveDateTime> {
 // src/metadata.rs
 
 use chrono::NaiveDateTime;
-use crate::path::GpsPoint;
 
-/// 軌跡詮釋資料
+/// 軌跡 Placemark 詮釋資料結構
 #[derive(Debug, Clone)]
 pub struct TrackMetadata {
     /// 軌跡名稱
     pub name: String,
-
+    /// 開始時間
+    pub start_time: NaiveDateTime,
+    /// 結束時間
+    pub end_time: NaiveDateTime,
+    /// 座標點（經度、緯度）
+    pub coordinates: Vec<(f64, f64)>,
     /// 分類（如「戶外運動」）
-    pub category: Option<String>,
-
-    /// 活動類型（如「步行」、「自行車」）
-    pub activity: Option<String>,
-
-    /// 開始時間戳
-    pub start_time: Option<NaiveDateTime>,
-
-    /// 結束時間戳
-    pub end_time: Option<NaiveDateTime>,
-
-    /// GPS 座標點集合
-    pub points: Vec<GpsPoint>,
-
-    /// 總距離（公里）
-    pub distance: f64,
-
-    /// 持續時間（秒）
-    pub duration_seconds: u64,
-
-    /// 座標點數量
-    pub points_count: usize,
-}
-
-impl Default for TrackMetadata {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            category: None,
-            activity: None,
-            start_time: None,
-            end_time: None,
-            points: Vec::new(),
-            distance: 0.0,
-            duration_seconds: 0,
-            points_count: 0,
-        }
-    }
+    pub category: String,
+    /// 活動（如「步行」）
+    pub activity: String,
+    /// 年度（如「2026」）
+    pub year: String,
+    /// 月份（如「2026-03」）
+    pub month: String,
 }
 
 impl TrackMetadata {
-    /// 從座標點計算距離與持續時間
-    pub fn compute_metrics(&mut self) {
-        self.points_count = self.points.len();
+    /// 使用半正矢（Haversine）公式計算軌跡總距離（公尺）
+    pub fn calculate_distance(&self) -> f64 {
+        const EARTH_RADIUS_KM: f64 = 6371.0;
+        let mut total_distance = 0.0;
 
-        if self.points.len() < 2 {
-            self.distance = 0.0;
-            return;
+        for i in 0..self.coordinates.len() - 1 {
+            let (lon1, lat1) = self.coordinates[i];
+            let (lon2, lat2) = self.coordinates[i + 1];
+
+            let lat1_rad = lat1.to_radians();
+            let lat2_rad = lat2.to_radians();
+            let delta_lat = (lat2 - lat1).to_radians();
+            let delta_lon = (lon2 - lon1).to_radians();
+
+            let a = (delta_lat / 2.0).sin().powi(2)
+                + lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
+            let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+
+            total_distance += EARTH_RADIUS_KM * c;
         }
 
-        // 計算總距離
-        self.distance = compute_total_distance(&self.points);
-
-        // 計算時間差（若有開始與結束時間）
-        if let (Some(start), Some(end)) = (self.start_time, self.end_time) {
-            self.duration_seconds = (end - start).num_seconds().max(0) as u64;
-        }
+        total_distance * 1000.0 // 轉換為公尺
     }
 
-    /// 檢查軌跡是否有效
-    pub fn is_valid(&self) -> bool {
-        !self.name.is_empty() && !self.points.is_empty()
+    /// 計算軌跡持續時間（秒）
+    pub fn duration_seconds(&self) -> i64 {
+        self.end_time
+            .signed_duration_since(self.start_time)
+            .num_seconds()
     }
-}
-
-/// 計算軌跡總距離
-fn compute_total_distance(points: &[GpsPoint]) -> f64 {
-    let mut total = 0.0;
-    for i in 1..points.len() {
-        total += points[i - 1].distance_to(&points[i]);
-    }
-    total
 }
 ```
+
+### 分類路徑提取（path.rs）
+
+分類資訊從 Folder 堆棧（而非 Description）中提取：
+
+```rust
+// src/path.rs
+
+/// 從 KML 資料夾路徑中提取軌跡分類資訊
+pub fn extract_categories(folder_path: &[String]) -> (String, String, String, String) {
+    let meaningful_path: Vec<&String> = folder_path
+        .iter()
+        .filter(|name| !name.contains("(Example)") && !name.contains("Movement Tracks"))
+        .collect();
+
+    match meaningful_path.len() {
+        0 => (String::new(), String::new(), String::new(), String::new()),
+        1 => extract_single_element(&meaningful_path),
+        2 => create_category_tuple(None, None, Some(0), Some(1), &meaningful_path),
+        3 => create_category_tuple(None, Some(0), Some(1), Some(2), &meaningful_path),
+        _ => { /* 使用最後四個元素 */ }
+    }
+}
+```
+
+- 回傳 `(category, activity, year, month)` 四元組
+- 依路徑深度自動判斷各欄位對應位置
+- 過濾掉根節點名稱（如 "Movement Tracks"）
 
 ---
 
@@ -365,46 +351,43 @@ fn compute_total_distance(points: &[GpsPoint]) -> f64 {
 
 ### 常見問題
 
-| 問題                | 處理方式                                        |
-| ------------------- | ----------------------------------------------- |
-| 空軌跡（無座標點）  | 驗證 `points.len() > 0`，跳過無效軌跡           |
-| 座標格式異常        | 使用正規表示式驗證，捕捉解析異常                |
-| 時間戳缺失          | 設為 `None`，後續邏輯判斷是否必須               |
-| 超大檔案（GB 級別） | 流式解析確保恆定記憶體使用，詳見 PERFORMANCE.md |
-| 非 UTF-8 編碼 KML   | 使用 BufReader 與錯誤恢復，或清楚提示使用者     |
+| 問題                | 處理方式                                                 |
+| ------------------- | -------------------------------------------------------- |
+| 空軌跡（無座標點）  | 目前不強制過濾；若時間可解析，仍會產生該筆軌跡           |
+| 座標格式異常        | 使用字串切割 + `parse()`；無效點由 `filter_map` 略過     |
+| 時間戳缺失          | `extract_times()` 回傳 `None`，該 Placemark 不會寫入結果 |
+| 超大檔案（GB 級別） | 流式解析確保恆定記憶體使用，詳見 PERFORMANCE.md          |
+| 非 UTF-8 編碼 KML   | 使用 BufReader 與錯誤恢復，或清楚提示使用者              |
 
 ### 錯誤處理範例
 
+專案使用自訂 `AnalyzerError` 枚舉（定義於 `src/error.rs`）搭配 `Result<T>` 型態別名：
+
 ```rust
-pub fn parse_kml_safe(file_path: &str) -> Result<Vec<TrackMetadata>, String> {
-    let file = File::open(file_path)
-        .map_err(|e| format!("無法開啟檔案: {}", e))?;
+use crate::error::{AnalyzerError, Result};
 
-    let reader = BufReader::new(file);
-    let mut xml_reader = Reader::from_reader(reader);
-
-    let mut placemarks = Vec::new();
+pub fn extract_placemarks_with_paths(
+    file_path: &PathBuf,
+) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let file = fs::File::open(file_path)?;  // io::Error 自動轉換為 AnalyzerError::Io
 
     // ...解析邏輯...
 
-    if placemarks.is_empty() {
-        return Err("檔案中未找到有效的軌跡".to_string());
-    }
-
-    Ok(placemarks)
+    Ok(results)
 }
 ```
 
+`AnalyzerError` 變體包含：`Io`、`ParsingError`、`TimeParsingError`、`CoordinateParsingError`、`FileNotFound`、`Other`。
+
 ---
 
-## 性能優化建議
+## 效能優化建議
 
 ### 已實現的優化
 
 1. **流式解析**：quick-xml 流式讀取，不載入全檔案
 2. **緩衝 I/O**：BufReader 減少系統呼用
 3. **正規表示式快取**：Lazy 單例化，避免重複編譯
-4. **避免字串複製**：使用 `as_ref()` 與 `Cow<str>`
 
 ### 進一步優化空間
 
@@ -421,20 +404,31 @@ pub fn parse_kml_safe(file_path: &str) -> Result<Vec<TrackMetadata>, String> {
 ```rust
 #[test]
 fn test_parse_sample_kml() {
-    let result = extract_placemarks_with_paths("tests/fixtures/tracks.kml");
+    use movement_tracks_analyzer::extract_placemarks_with_paths;
+    use std::path::PathBuf;
+
+    let result = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kml"));
     assert!(result.is_ok());
 
     let tracks = result.unwrap();
     assert!(!tracks.is_empty());
-    assert!(tracks[0].is_valid());
+
+    let (_path, metadata) = &tracks[0];
+    assert!(!metadata.name.is_empty());
+    assert!(metadata.calculate_distance() >= 0.0);
 }
 
 #[test]
 fn test_coordinates_parsing() {
-    let coords = "121.5,25.0,100.0 121.6,25.1,105.0 121.7,25.2,110.0";
-    let result = parse_coordinates(coords);
-    assert!(result.is_ok());
-    assert_eq!(result.unwrap().len(), 3);
+    // parse_coordinates 為 parser.rs 的私有函式，
+    // 透過整合測試間接驗證：
+    use movement_tracks_analyzer::extract_placemarks_with_paths;
+    use std::path::PathBuf;
+
+    let tracks = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kml")).unwrap();
+    for (_path, metadata) in &tracks {
+        assert!(!metadata.coordinates.is_empty(), "每個軌跡應至少有一個座標點");
+    }
 }
 ```
 
@@ -442,14 +436,11 @@ fn test_coordinates_parsing() {
 
 ```rust
 #[test]
-fn test_empty_coordinates() {
-    let result = parse_coordinates("");
-    assert!(result.is_err());
-}
+fn test_nonexistent_file() {
+    use movement_tracks_analyzer::extract_placemarks_with_paths;
+    use std::path::PathBuf;
 
-#[test]
-fn test_malformed_coordinates() {
-    let result = parse_coordinates("invalid,data");
+    let result = extract_placemarks_with_paths(&PathBuf::from("nonexistent.kml"));
     assert!(result.is_err());
 }
 ```
@@ -458,41 +449,57 @@ fn test_malformed_coordinates() {
 
 ## 添加新的解析特性
 
-### 步驟 1：擴展 TrackMetadata
+### 步驟 1：擴展 TrackMetadata（metadata.rs）
 
 ```rust
 pub struct TrackMetadata {
     // ...既有欄位...
-    pub new_field: Option<String>,
+    pub new_field: String,
 }
 ```
 
-### 步驟 2：在解析器中提取新資料
+### 步驟 2：在 ParserState 中新增暫存欄位（parser.rs）
 
 ```rust
-Event::Text( ref e) => {
-let text = e.unescape() ?.into_owned();
-if in_new_element {
-current_placemark.new_field = Some(text);
-}
+#[derive(Debug, Default)]
+struct ParserState {
+    // ...既有欄位...
+    in_new_element: bool,
+    current_new_data: String,
 }
 ```
 
-### 步驟 3：在正規表示式或提取邏輯中處理
+### 步驟 3：在 handle_start_tag / handle_end_tag 中處理新標籤
 
 ```rust
-pub fn extract_new_data(text: &str) -> Option<String> {
-    // 實現提取邏輯
+fn handle_start_tag(tag_name: &str, folder_stack: &mut Vec<String>, state: &mut ParserState) {
+    match tag_name {
+        // ...既有匹配...
+        "NewElement" if state.in_placemark => {
+            state.in_new_element = true;
+        }
+        _ => {}
+    }
 }
 ```
 
-### 步驟 4：編寫測試
+### 步驟 4：更新 lib.rs 導出（若為公開 API）
+
+若新欄位需透過函式庫 crate 導出，在 `src/lib.rs` 的 `pub use` 區塊中新增對應符號。
+
+### 步驟 5：編寫測試
 
 ```rust
 #[test]
-fn test_extract_new_data() {
-    let result = extract_new_data("expected_value");
-    assert_eq!(result, Some("expected_value".to_string()));
+fn test_extract_new_field() {
+    use movement_tracks_analyzer::extract_placemarks_with_paths;
+    use std::path::PathBuf;
+
+    let tracks = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kml")).unwrap();
+    for (_path, metadata) in &tracks {
+        // 驗證新欄位
+        assert!(!metadata.new_field.is_empty());
+    }
 }
 ```
 
@@ -504,4 +511,4 @@ fn test_extract_new_data() {
 - **清楚的錯誤訊息**：協助使用者診斷 KML 檔案問題
 - **完整的測試**：包含正常情況、邊界情況與錯誤情況
 - **文件註解**：解釋複雜的解析邏輯
-- **性能監控**：定期測試大型 KML 檔案的解析性能
+- **效能監控**：定期測試大型 KML 檔案的解析效能

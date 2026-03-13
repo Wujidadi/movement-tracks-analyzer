@@ -4,15 +4,25 @@
 
 ```
 movement-tracks-analyzer/
-├── Cargo.toml                        # 專案配置（9 個依賴）
+├── Cargo.toml                        # 專案配置（8 個依賴）
 ├── Cargo.lock                        # 版本鎖定
 ├── README.md                         # 使用指南
 ├── PERFORMANCE.md                    # 效能優化說明
 ├── REFACTORING.md                    # 程式碼重構總結
 ├── ARCHITECTURE.md                   # 本文檔
+├── AGENTS.md                         # Agent 操作指引（→ .github/AGENTS.md 軟連結）
+├── .github/
+│   ├── copilot-instructions.md       # AI 協作入口
+│   ├── AGENTS.md                     # 全域操作規範
+│   ├── instructions/
+│   │   └── rust.instructions.md      # Rust 開發規範
+│   └── skills/                       # 任務技能模組
+│       ├── testing/SKILL.md
+│       ├── cli-development/SKILL.md
+│       └── kml-parsing/SKILL.md
 ├── src/
 │   ├── lib.rs                        # Library root，導出公開 API
-│   ├── main.rs                       # 💎 CLI 主程序（20 行）
+│   ├── main.rs                       # CLI 主程序（26 行）
 │   ├── cli.rs                        # 命令行參數定義
 │   ├── config.rs                     # 配置結構體
 │   ├── path_resolver.rs              # 檔案路徑解析
@@ -24,6 +34,9 @@ movement-tracks-analyzer/
 │   ├── path.rs                       # 路徑提取邏輯
 │   ├── metadata.rs                   # 軌跡詮釋資料結構
 │   └── format.rs                     # 輸出格式化
+├── tests/
+│   └── fixtures/
+│       └── tracks.kml                # 測試用 KML 檔案
 └── target/
     └── release/
         └── movement_tracks_analyzer  # 編譯的可執行檔
@@ -31,21 +44,28 @@ movement-tracks-analyzer/
 
 ## 🔧 模組詳解
 
-### 🎯 `main.rs` (16 行) - 核心入口
+### 🎯 `main.rs` (26 行) - 核心入口
 
 ```rust
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = cli::Args::parse();
-    let config = converter::build_config(args)?;
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> movement_tracks_analyzer::Result<()> {
+    let args = Args::parse();
+    let config = build_config(args)?;
     let placemarks = extract_placemarks_with_paths(&config.kml_file)?;
-    output::output_results(&placemarks, &config)
+    output_results(&placemarks, &config)
 }
 ```
 
 - **職責**：清潔的程式入口，流程一目瞭然
-- **特點**：只有 16 行，代表完整的資料流程
+- **特點**：採用 `run()` 函式模式搭配自訂 `Result` 型態，錯誤集中由 `main()` 處理
 
-### `cli.rs` (57 行)
+### `cli.rs` (61 行)
 
 - **職責**：命令行參數定義和輸出使用說明
 - **內容**：
@@ -61,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     - `Config` 結構體
     - `OutputType` 枚舉
 
-### `path_resolver.rs` (46 行)
+### `path_resolver.rs` (47 行)
 
 - **職責**：KML 檔案路徑解析
 - **函式**：
@@ -70,22 +90,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     - `check_current_directory()` - 檢查當前目錄
     - `check_path_with_filenames()` - 工具函式
 
-### `output.rs` (86 行)
+### `output.rs` (75 行)
 
 - **職責**：結果輸出和檔案儲存
 - **函式**：
     - `output_results()` - 輸出主函式
     - `save_to_file()` - 儲存到檔案
     - `determine_file_path()` - 確定輸出路徑
+    - `has_file_extension()` - 判斷路徑是否含副檔名
     - `get_default_filename()` - 取得預設檔名
 
-### `converter.rs` (34 行)
+### `converter.rs` (38 行)
 
 - **職責**：命令行參數轉換
 - **函式**：
     - `build_config()` - 參數到配置的轉換
 
-### `error.rs` (57 行)
+### `error.rs` (101 行)
 
 - **職責**：自訂錯誤類型定義
 - **內容**：
@@ -95,7 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     - `From` implementations - 自動錯誤轉換
     - `Result<T>` 型態別名 - 便捷的 Result 類型
 
-### `regex.rs` (18 行)
+### `regex.rs` (79 行)
 
 - **職責**：正規表示式模式定義
 - **內容**：
@@ -104,13 +125,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     - `END_TIME_PATTERN` - 提取結束時間的正規表達式
     - `create_time_pattern()` - 參數化生成時間模式的函式
 
-### `lib.rs` (12 行)
+### `lib.rs` (49 行)
 
 - **職責**：Library root，導出公開 API
-- **導出**：`TrackMetadata`、`extract_placemarks_with_paths`、`OutputFormat`、`format_output`
+- **公開模組**：`error`、`format`、`metadata`、`parser`、`path`、`regex`
+- **導出**：`AnalyzerError`、`Result`、`OutputFormat`、`format_output`、`TrackMetadata`、`extract_placemarks_with_paths`、`extract_categories`、`START_TIME_PATTERN`、`END_TIME_PATTERN`
 - **用途**：允許將此專案作為庫使用
 
-### `parser.rs` (220 行) - 認知複雜度 30%
+### `parser.rs` (248 行) - 認知複雜度 30%
 
 - **職責**：KML 流式解析
 - **設計**：狀態機模式
@@ -121,15 +143,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     - `parse_coordinates()` - 座標解析
     - `extract_times()` - 時間提取
 
-### `path.rs` (50 行) - 認知複雜度 15%
+### `path.rs` (184 行) - 認知複雜度 15%
 
 - **職責**：路徑提取和分類
 - **函式**：
     - `extract_categories()` - 提取分類/活動/年份/月份
     - `create_category_tuple()` - 構建分類元組
+    - `empty_tuple()` - 返回空分類元組
     - `extract_single_element()` - 單一元素路徑處理
 
-### `metadata.rs` (54 行)
+### `metadata.rs` (194 行)
 
 - **職責**：軌跡資料結構和計算
 - **結構**：`TrackMetadata`
@@ -137,7 +160,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     - `calculate_distance()` - 半正矢（Haversine）公式
     - `duration_seconds()` - 時間計算
 
-### `format.rs` (233 行)
+### `format.rs` (294 行)
 
 - **職責**：輸出格式化
 - **支援格式**：JSON、CSV、TSV、Table（命令行表格）
@@ -149,15 +172,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     - `format_table()`
     - `calculate_column_widths()` - 欄寬計算
     - `format_cell()` - 單元格格式化（支援 Unicode）
+    - `format_row_data()` - 格式化軌跡資料為字串陣列
 
 ## 🚀 資料流
 
 ```
-main() 
+main() → run()
   ↓
-parse_arguments()
+Args::parse() [cli.rs]
   ↓
-get_kml_file_path()
+build_config() [converter.rs]
+  ├─→ resolve_kml_file() [path_resolver.rs]
+  └─→ Config [config.rs]
   ↓
 extract_placemarks_with_paths() [parser.rs]
   ├─→ XML 事件迴圈
@@ -172,22 +198,22 @@ format_output() [format.rs]
   ├─→ format_tsv()
   └─→ format_table()
   ↓
-output_results()
+output_results() [output.rs]
   ├─→ 命令行輸出 (Shell)
   └─→ save_to_file() (File)
 ```
 
 ## 📊 統計數據
 
-| 指標          | 數值                   |
-|-------------|----------------------|
-| **程式碼總行數**  | 925                  |
-| **模組數量**    | 13                   |
-| **認知複雜度最高** | 30% (< 40% ✅)        |
-| **依賴數量**    | 9                    |
-| **編譯時間**    | 1.19s                |
-| **二進位檔案大小** | 2.3MB                |
-| **測試數據**    | 48MB KML / 2,164 個軌跡 |
+| 指標               | 數值                    |
+| ------------------ | ----------------------- |
+| **程式碼總行數**   | 1,413                   |
+| **模組數量**       | 13                      |
+| **認知複雜度最高** | 30% (< 40% ✅)           |
+| **依賴數量**       | 8                       |
+| **編譯時間**       | 1.19s                   |
+| **二進位檔案大小** | 2.3MB                   |
+| **測試數據**       | 48MB KML / 2,164 個軌跡 |
 
 ## 🔑 關鍵技術
 

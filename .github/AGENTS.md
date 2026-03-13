@@ -18,7 +18,7 @@
 
 ## 通則
 
-- 回應與文件一律使用**繁體中文（台灣）**，並採用台灣標準翻譯和慣用術語，例如：使用者、設定、回傳、呼叫、元件、參數、性能、記憶體。
+- 回應與文件一律使用**繁體中文（台灣）**，並採用台灣標準翻譯和慣用術語，例如：使用者、設定、回傳、呼叫、元件、參數、效能、記憶體。
 - 修改前應先蒐集需求相關上下文，不得臆測模組位置、命名規則、資料結構或業務邏輯。
 - 實作應以**最小必要修改**為原則，避免引入無關重構、命名變更或大範圍搬移。
 - 若需求跨越多個層次，應先說明可能影響的檔案與原因，再進行修改。
@@ -43,12 +43,14 @@ Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具**，透過解析 KML
 ## 檔案與編譯
 
 - 編譯使用 `cargo build --release` 產生最終執行檔。
-- 主程式入口為 `src/main.rs`（清潔的 16 行程式碼），呼叫各功能模組組成資料流程。
-- 核心邏輯應保持在 `src/lib.rs` 導出的模組中，確保可作為函式庫被重複使用。
+- 專案採用**雙 crate 架構**：二進位 crate（`src/main.rs`）負責 CLI 入口與流程編排，函式庫 crate（`src/lib.rs`）導出核心解析邏輯。二進位 crate 內的模組（`cli`、`config`、`converter`、`output`、`path_resolver`）透過 `mod` 宣告引入；跨 crate 引用使用 `use movement_tracks_analyzer::{...}`。
+- 主程式入口為 `src/main.rs`（26 行），採用 `run()` 函式模式搭配自訂 `Result` 型態，錯誤由 `eprintln!` 輸出後以非零狀態碼退出。
+- 核心邏輯保持在 `src/lib.rs` 導出的模組中（`error`、`format`、`metadata`、`parser`、`path`、`regex`），確保可作為函式庫被重複使用。
+- 錯誤處理使用自訂 `AnalyzerError` 枚舉（定義於 `src/error.rs`），搭配 `Result<T>` 型態別名；包含 6 種錯誤變體（`Io`、`ParsingError`、`TimeParsingError`、`CoordinateParsingError`、`FileNotFound`、`Other`），並實作 `From` traits 支援自動轉換。
 
-## 性能與優化
+## 效能與優化
 
-- 專案具有性能優化文件（`PERFORMANCE.md`），涉及性能改進時應先閱讀該文件。
+- 專案有效能優化文件（`PERFORMANCE.md`），涉及效能改進時應先閱讀該文件。
 - KML 檔案使用**流式解析**（狀態機），避免將整個檔案載入記憶體。
 
 ## 設定與環境
@@ -58,8 +60,9 @@ Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具**，透過解析 KML
 
 ## 驗證與命令執行
 
-- 單元測試應包含於 `tests/` 目錄或模組內的 `#[cfg(test)]` 區塊。
+- 單元測試應包含於模組內的 `#[cfg(test)]` 區塊（目前 24 個，涵蓋 `path`、`metadata`、`regex`、`error` 四個模組）。
 - 集成測試應放在 `tests/` 目錄下的 Rust 檔案，每個檔案為獨立的 crate。
+- 公開 API 應附帶 doc-tests（目前 5 個，涵蓋 `lib.rs`、`parser.rs`、`path.rs`、`metadata.rs`、`format.rs`）。
 - 執行測試使用 `cargo test`；執行特定測試使用 `cargo test test_name`。
 - 編譯前應執行 `cargo check` 驗證程式碼無誤。
 - 當涉及 KML 檔案解析改動時，應使用 `tests/fixtures/tracks.kml` 進行驗證。
@@ -68,7 +71,7 @@ Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具**，透過解析 KML
 
 - 說明修改內容時，應交代修改檔案、修改原因、可能影響範圍與建議驗證方式。
 - 若新增功能涉及命令行參數、輸出格式或檔案處理邏輯，應評估是否同步更新 `README.md` 或相關文件。
-- 架構相關改動應更新 `ARCHITECTURE.md`；性能相關改動應更新 `PERFORMANCE.md`。
+- 架構相關改動應更新 `ARCHITECTURE.md`；效能相關改動應更新 `PERFORMANCE.md`；重構相關改動應更新 `REFACTORING.md`。
 
 ## 禁止和強制事項
 
