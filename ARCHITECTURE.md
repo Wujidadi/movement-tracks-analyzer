@@ -22,7 +22,7 @@ movement-tracks-analyzer/
 │       └── kml-parsing/SKILL.md
 ├── src/
 │   ├── lib.rs                        # Library root，導出公開 API
-│   ├── main.rs                       # CLI 主程序（26 行）
+│   ├── main.rs                       # CLI 主程式（26 行）
 │   ├── cli.rs                        # 命令行參數定義
 │   ├── config.rs                     # 配置結構體
 │   ├── path_resolver.rs              # 檔案路徑解析

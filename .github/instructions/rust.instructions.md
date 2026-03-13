@@ -22,7 +22,7 @@ applyTo: "src/**,tests/**,Cargo.toml"
 .
 ├── src/
 │   ├── lib.rs                     # 函式庫根，導出公開 API（49 行）
-│   ├── main.rs                    # CLI 主程序（26 行）- run() 模式入口，搭配自訂 Result 型態
+│   ├── main.rs                    # CLI 主程式（26 行）- run() 模式入口，搭配自訂 Result 型態
 │   ├── cli.rs                     # 命令行參數定義（Clap derive 宏）
 │   ├── config.rs                  # 配置結構體（執行期設定）
 │   ├── path_resolver.rs           # 檔案路徑解析，支援預設檔案自動尋找
