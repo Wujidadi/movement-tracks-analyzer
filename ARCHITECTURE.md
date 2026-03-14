@@ -4,7 +4,7 @@
 
 ```
 movement-tracks-analyzer/
-├── Cargo.toml                        # 專案配置（8 個依賴）
+├── Cargo.toml                        # 專案配置（9 個依賴）
 ├── Cargo.lock                        # 版本鎖定
 ├── README.md                         # 使用指南
 ├── PERFORMANCE.md                    # 效能優化說明
@@ -30,13 +30,17 @@ movement-tracks-analyzer/
 │   ├── converter.rs                  # 參數轉換
 │   ├── error.rs                      # 自訂錯誤類型
 │   ├── regex.rs                      # 正規表示式模式
-│   ├── parser.rs                     # XML 流式解析（狀態機）
+│   ├── parser.rs                     # XML 流式解析（狀態機），支援 KML 與 KMZ
 │   ├── path.rs                       # 路徑提取邏輯
 │   ├── metadata.rs                   # 軌跡詮釋資料結構
 │   └── format.rs                     # 輸出格式化
 ├── tests/
+│   ├── kmz_parsing.rs                # KMZ 解析集成測試
 │   └── fixtures/
-│       └── tracks.kml                # 測試用 KML 檔案
+│       ├── tracks.kml                # 測試用 KML 檔案
+│       ├── tracks.kmz                # 測試用 KMZ 檔案（doc.kml）
+│       ├── tracks_no_doc.kmz         # 測試用 KMZ 檔案（非 doc.kml 命名）
+│       └── empty.kmz                 # 測試用空 KMZ 檔案（不含 KML）
 └── target/
     └── release/
         └── movement_tracks_analyzer  # 編譯的可執行檔
@@ -83,12 +87,13 @@ fn run() -> movement_tracks_analyzer::Result<()> {
 
 ### `path_resolver.rs` (47 行)
 
-- **職責**：KML 檔案路徑解析
+- **職責**：KML/KMZ 檔案路徑解析
 - **函式**：
     - `resolve_kml_file()` - 主函式
     - `check_exe_directory()` - 檢查執行檔目錄
     - `check_current_directory()` - 檢查當前目錄
     - `check_path_with_filenames()` - 工具函式
+- **預設檔名**：依序搜尋 `移動軌跡.kml`、`Movement Tracks.kml`、`移動軌跡.kmz`、`Movement Tracks.kmz`（KML 優先）
 
 ### `output.rs` (75 行)
 
@@ -110,7 +115,7 @@ fn run() -> movement_tracks_analyzer::Result<()> {
 
 - **職責**：自訂錯誤類型定義
 - **內容**：
-    - `AnalyzerError` 枚舉 - 6 種錯誤類型
+    - `AnalyzerError` 枚舉 - 7 種錯誤類型
     - `Display` trait 實現 - 用戶友好的錯誤訊息
     - `Error` trait 實現 - 標準錯誤接口
     - `From` implementations - 自動錯誤轉換
@@ -134,10 +139,12 @@ fn run() -> movement_tracks_analyzer::Result<()> {
 
 ### `parser.rs` (248 行) - 認知複雜度 30%
 
-- **職責**：KML 流式解析
+- **職責**：KML/KMZ 流式解析
 - **設計**：狀態機模式
 - **核心函式**：
-    - `extract_placemarks_with_paths()` - 主解析函式
+    - `extract_placemarks_with_paths()` - 主解析函式（依副檔名分流 KML/KMZ）
+    - `extract_kml_from_kmz()` - 從 KMZ 壓縮檔中提取 KML 內容
+    - `parse_kml_from_reader()` - 泛型 BufRead 解析器（核心解析迴圈）
     - `handle_start_tag()` - 開始標籤處理
     - `handle_end_tag()` - 結束標籤處理
     - `parse_coordinates()` - 座標解析
@@ -186,7 +193,9 @@ build_config() [converter.rs]
   └─→ Config [config.rs]
   ↓
 extract_placemarks_with_paths() [parser.rs]
-  ├─→ XML 事件迴圈
+  ├─→ KML：直接流式讀取
+  ├─→ KMZ：extract_kml_from_kmz() 解壓後讀取
+  ├─→ parse_kml_from_reader()（XML 事件迴圈）
   ├─→ handle_start_tag()
   ├─→ handle_end_tag()
   ├─→ extract_categories() [path.rs]
@@ -210,7 +219,7 @@ output_results() [output.rs]
 | **程式碼總行數**   | 1,413                   |
 | **模組數量**       | 13                      |
 | **認知複雜度最高** | 30% (< 40% ✅)           |
-| **依賴數量**       | 8                       |
+| **依賴數量**       | 9                       |
 | **編譯時間**       | 1.19s                   |
 | **二進位檔案大小** | 2.3MB                   |
 | **測試數據**       | 48MB KML / 2,164 個軌跡 |
@@ -218,6 +227,7 @@ output_results() [output.rs]
 ## 🔑 關鍵技術
 
 - **流式 XML 解析**：`quick-xml` (0.39)
+- **KMZ 解壓**：`zip` (8.2)
 - **日期時間**：`chrono` (0.4)
 - **正規表示式**：`regex` (1.12)
 - **Unicode 寬度**：`unicode-width` (0.2)
@@ -229,7 +239,8 @@ output_results() [output.rs]
 2. **單一職責**：每個模組責任清晰
 3. **無程式碼重複**：統一的格式化介面和欄寬計算
 4. **流式處理**：只掃描 1 次大檔案
-5. **模組化**：可作為庫使用
+5. **KMZ 支援**：自動從 ZIP 壓縮檔提取 KML，透過泛型 `BufRead` 共用解析邏輯（單檔限制：只處理第一個 KML）
+6. **模組化**：可作為庫使用
 
 ## 🧪 驗證清單
 

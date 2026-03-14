@@ -9,11 +9,12 @@ use cli::Args;
 use converter::build_config;
 use movement_tracks_analyzer::extract_placemarks_with_paths;
 use output::output_results;
+use std::process;
 
 fn main() {
     if let Err(e) = run() {
         eprintln!("Error: {}", e);
-        std::process::exit(1);
+        process::exit(1);
     }
 }
 

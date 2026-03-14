@@ -1,7 +1,13 @@
-use crate::{extract_categories, Result, TrackMetadata, END_TIME_PATTERN, START_TIME_PATTERN};
+use crate::{
+    extract_categories, AnalyzerError, Result, TrackMetadata, END_TIME_PATTERN, START_TIME_PATTERN,
+};
 use chrono::NaiveDateTime;
 use quick_xml::{events::Event, Reader};
-use std::{fs, io::BufReader, path::PathBuf};
+use std::{
+    fs,
+    io::{BufRead, BufReader, Cursor, Read},
+    path::PathBuf,
+};
 
 /// 從 KML Description 中提取開始和結束時間
 fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
@@ -17,13 +23,14 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
     Some((start, end))
 }
 
-/// 從 KML 檔案中提取所有 Placemark 軌跡
+/// 從 KML 或 KMZ 檔案中提取所有 Placemark 軌跡
 ///
 /// 使用流式 XML 解析器只掃描檔案一次，自動追蹤 KML 層級以提取軌跡分類資訊。
+/// 若輸入為 KMZ 檔案（`.kmz` 副檔名），會先從 ZIP 壓縮檔中提取 KML 內容再解析。
 ///
 /// # Arguments
 ///
-/// * `file_path` - KML 檔案的路徑
+/// * `file_path` - KML 或 KMZ 檔案的路徑
 ///
 /// # Returns
 ///
@@ -33,13 +40,14 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
 ///
 /// # Errors
 ///
-/// 若檔案不存在或 KML 格式無效，返回 `AnalyzerError`
+/// 若檔案不存在、KML 格式無效或 KMZ 中找不到 KML 檔案，返回 `AnalyzerError`
 ///
 /// # Performance
 ///
 /// - 時間複雜度：O(n)（單次掃描）
 /// - 空間複雜度：O(m)（m = Placemarks 數量）
-/// - 適合處理大型檔案（50MB+）
+/// - KML 檔案適合處理大型檔案（50MB+），採用流式解析
+/// - KMZ 檔案需先將 KML 解壓至記憶體，再進行流式解析
 ///
 /// # Example
 ///
@@ -63,8 +71,53 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
 pub fn extract_placemarks_with_paths(
     file_path: &PathBuf,
 ) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let is_kmz = file_path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("kmz"));
+
+    if is_kmz {
+        let kml_bytes = extract_kml_from_kmz(file_path)?;
+        let cursor = Cursor::new(kml_bytes);
+        let reader = BufReader::new(cursor);
+        parse_kml_from_reader(reader)
+    } else {
+        let file = fs::File::open(file_path)?;
+        let reader = BufReader::new(file);
+        parse_kml_from_reader(reader)
+    }
+}
+
+/// 從 KMZ（ZIP）檔案中提取第一個 KML 檔案的內容
+///
+/// 依照 KMZ 規範，優先尋找根目錄的 `doc.kml`，若不存在則取第一個 `.kml` 副檔名的條目。
+fn extract_kml_from_kmz(file_path: &PathBuf) -> Result<Vec<u8>> {
     let file = fs::File::open(file_path)?;
-    let reader = BufReader::new(file);
+    let mut archive = zip::ZipArchive::new(file)?;
+
+    // 優先尋找 doc.kml（KMZ 規範的預設主檔案）
+    if let Ok(mut entry) = archive.by_name("doc.kml") {
+        let mut buf = Vec::with_capacity(entry.size() as usize);
+        entry.read_to_end(&mut buf)?;
+        return Ok(buf);
+    }
+
+    // 退而求其次，尋找第一個 .kml 副檔名的檔案
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        if entry.name().to_ascii_lowercase().ends_with(".kml") {
+            let mut buf = Vec::with_capacity(entry.size() as usize);
+            entry.read_to_end(&mut buf)?;
+            return Ok(buf);
+        }
+    }
+
+    Err(AnalyzerError::KmzError(
+        "No KML file found in KMZ archive".to_string(),
+    ))
+}
+
+/// 從實作 BufRead 的來源解析 KML 內容
+fn parse_kml_from_reader<R: BufRead>(reader: R) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
     let mut xml_reader = Reader::from_reader(reader);
 
     let mut results = Vec::new();

@@ -2,11 +2,13 @@
 
 ## 功能概述
 
-- 解析 KML 格式的 GPS 移動軌跡檔案
-  > 個人自用的軌跡紀錄檔，一般名為 `移動軌跡.kml`
+- 解析 KML/KMZ 格式的 GPS 移動軌跡檔案
+  > 個人自用的軌跡紀錄檔，一般名為 `移動軌跡.kml` 或 `移動軌跡.kmz`
 - 提取軌跡的開始/結束時間、距離、持續時間、座標點數量
 - 區分為：分類（戶外運動、動力交通工具...）、活動（步行、自行車、飛機...）、年份、月份
 - 支援多種輸出格式：JSON、CSV、TSV、表格（支援 Unicode 字元正確對齊）
+
+> **KMZ 支援限制**：目前僅支援解析 KMZ 檔案中的**單一 KML 內容**。若 KMZ 包含多個 KML 檔案，工具只會處理其中第一個（優先 `doc.kml`，否則取首個 `.kml` 檔）。
 
 ## 快速開始
 
@@ -22,11 +24,12 @@ cargo build --release
 # 查看說明
 ./target/release/movement_tracks_analyzer -h
 
-# 從預設路徑載入 KML 檔（優先級：移動軌跡.kml > Movement Tracks.kml）
+# 從預設路徑載入 KML/KMZ 檔（優先級：移動軌跡.kml > Movement Tracks.kml > 移動軌跡.kmz > Movement Tracks.kmz）
 ./target/release/movement_tracks_analyzer
 
-# 指定 KML 檔（短格式）
+# 指定 KML 或 KMZ 檔（短格式）
 ./target/release/movement_tracks_analyzer -f "path/to/file.kml"
+./target/release/movement_tracks_analyzer -f "path/to/file.kmz"
 
 # 指定 KML 檔（長格式）
 ./target/release/movement_tracks_analyzer --file "path/to/file.kml"
@@ -36,7 +39,7 @@ cargo build --release
 
 | 參數                    | 說明                                                   |
 | ----------------------- | ------------------------------------------------------ |
-| `-f, --file <PATH>`     | 指定 KML 檔路徑                                        |
+| `-f, --file <PATH>`     | 指定 KML/KMZ 檔路徑                                    |
 | `-o, --output <TYPE>`   | 輸出類型：`shell`（命令行）或 `file`（檔案，預設）     |
 | `-m, --format <FORMAT>` | 輸出格式：`json`、`csv`、`tsv`、`table`（默認：`csv`） |
 | `-x, --export <PATH>`   | 輸出檔案路徑（支持目錄或完整檔案路徑，預設為當前目錄） |

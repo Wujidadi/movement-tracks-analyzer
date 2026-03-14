@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
 /// 使用說明訊息模板
-pub const HELP_TEMPLATE: &str = r#"Parse KML GPS tracks and generate analysis reports
+pub const HELP_TEMPLATE: &str = r#"Parse KML/KMZ GPS tracks and generate analysis reports
 
 Usage: {usage}
 
@@ -12,12 +12,12 @@ Options:
 
 #[derive(Parser, Debug)]
 #[command(name = "Movement Tracks Analyzer")]
-#[command(about = "Parse KML GPS tracks and generate analysis reports", long_about = None)]
+#[command(about = "Parse KML/KMZ GPS tracks and generate analysis reports", long_about = None)]
 #[command(help_template = HELP_TEMPLATE)]
 #[command(override_usage = "movement_tracks_analyzer [OPTIONS]")]
 pub struct Args {
-    // KML 檔案路徑（優先級：命令行參數 > 執行檔目錄 > 當前目錄）
-    /// KML file path (priority: command line > executable directory > current directory)
+    // KML/KMZ 檔案路徑（優先級：命令行參數 > 執行檔目錄 > 當前目錄）
+    /// KML/KMZ file path (priority: command line > executable directory > current directory)
     #[arg(short, long, value_name = "PATH")]
     pub file: Option<PathBuf>,
 

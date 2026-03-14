@@ -1,6 +1,10 @@
 use crate::config::{Config, OutputType};
 use movement_tracks_analyzer::{OutputFormat, Result, TrackMetadata};
-use std::path::{Path, PathBuf};
+use std::{
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 /// 輸出結果
 pub fn output_results(placemarks: &[(Vec<String>, TrackMetadata)], config: &Config) -> Result<()> {
@@ -22,8 +26,6 @@ pub fn output_results(placemarks: &[(Vec<String>, TrackMetadata)], config: &Conf
 
 /// 儲存輸出到檔案
 fn save_to_file(output: &str, format: OutputFormat, export_path: Option<&Path>) -> Result<()> {
-    use std::{fs::File, io::Write};
-
     let file_path = determine_file_path(export_path, format)?;
 
     let mut file = File::create(&file_path)?;

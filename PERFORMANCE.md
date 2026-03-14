@@ -36,12 +36,12 @@
 // 邊解析邊處理，無須整個載入到記憶體
 let mut xml_reader = Reader::from_reader(reader);
 loop {
-    match xml_reader.read_event_into( & mut buf) {
-        Ok(Event::Start(elem)) => { /* 進入元素 */ }
-        Ok(Event::Text(text)) => { /* 處理文本 */ }
-        Ok(Event::End(elem)) => { /* 離開元素 */ }
-        _ => {}
-    }
+match xml_reader.read_event_into( & mut buf) {
+Ok(Event::Start(elem)) => { /* 進入元素 */ }
+Ok(Event::Text(text)) => { /* 處理文本 */ }
+Ok(Event::End(elem)) => { /* 離開元素 */ }
+_ => {}
+}
 }
 ```
 
@@ -90,9 +90,23 @@ once_cell = "1.21"       # ⭐ 惰性靜態初始化（快取正規表示式）
 quick-xml = "0.39"       # ⭐ 流式 XML 解析（核心改進）
 regex = "1.12"           # 時間戳提取（預編譯）
 unicode-width = "0.2"    # Unicode 寬字元計算
+zip = "8.2"              # KMZ（ZIP）解壓縮
 ```
 
 移除了低效的 `roxmltree`（DOM 解析方式），採用更高效的事件驅動模式。
+
+## KMZ 檔案的記憶體策略
+
+KMZ 是 ZIP 格式的壓縮檔，內含 KML 檔案。解析 KMZ 時的處理流程：
+
+1. 開啟 ZIP 壓縮檔（`zip::ZipArchive`）
+2. 優先尋找 `doc.kml`（KMZ 規範的預設主檔案），若不存在則取第一個 `.kml` 檔案
+3. 將 KML 內容解壓至記憶體（`Vec<u8>`）
+4. 以 `Cursor` 包裝後透過泛型 `BufRead` 介面送入與 KML 相同的流式解析器
+
+> **單檔限制**：目前僅支援 KMZ 中的**單一 KML 內容**。若 KMZ 包含多個 KML 檔案，工具只會處理其中第一個（優先 `doc.kml`，否則取首個 `.kml` 檔）。
+
+**記憶體影響**：KMZ 中的 KML 需完整解壓至記憶體後才能進行 XML 解析，因此不是完全的流式處理。對一般大小的 KMZ（數十 MB 解壓後）影響有限。若需支援 GB 級 KMZ，可考慮寫入暫存檔再流式讀取。
 
 ## 結論
 

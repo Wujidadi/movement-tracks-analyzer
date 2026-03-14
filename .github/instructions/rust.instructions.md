@@ -11,6 +11,7 @@ applyTo: "src/**,tests/**,Cargo.toml"
 - **語言**：Rust 2024 Edition
 - **命令行框架**：Clap 4.5（derive 宏風格）
 - **XML 解析**：quick-xml 0.39（流式解析，狀態機模式）
+- **壓縮檔**：zip 8.2（KMZ 解壓縮）
 - **序列化**：serde + serde_json
 - **時間處理**：chrono 0.4
 - **正規表示**：regex 1.12
@@ -25,18 +26,22 @@ applyTo: "src/**,tests/**,Cargo.toml"
 │   ├── main.rs                    # CLI 主程式（26 行）- run() 模式入口，搭配自訂 Result 型態
 │   ├── cli.rs                     # 命令行參數定義（Clap derive 宏）
 │   ├── config.rs                  # 配置結構體（執行期設定）
-│   ├── path_resolver.rs           # 檔案路徑解析，支援預設檔案自動尋找
+│   ├── path_resolver.rs           # 檔案路徑解析，支援預設檔案自動尋找（KML/KMZ）
 │   ├── converter.rs               # 參數轉換，將 CLI args 轉為應用配置
 │   ├── output.rs                  # 輸出結果（shell / file）與檔案路徑判定
 │   ├── error.rs                   # 自訂錯誤類型（AnalyzerError 枚舉 + Result<T> 別名）
 │   ├── regex.rs                   # 正規表示式模式集中定義
-│   ├── parser.rs                  # 流式 XML 解析（狀態機），避免全檔案載入記憶體
+│   ├── parser.rs                  # 流式 XML 解析（狀態機），支援 KML 與 KMZ，避免全檔案載入記憶體
 │   ├── path.rs                    # GPS 軌跡路徑提取與分類邏輯
 │   ├── metadata.rs                # 軌跡詮釋資料結構（TrackMetadata）
 │   └── format.rs                  # 輸出格式化（JSON、CSV、TSV、表格）
 └── tests/
-    └── fixtures/                  # 測試用 KML 檔案
-        └── tracks.kml
+    ├── kmz_parsing.rs             # KMZ 解析集成測試
+    └── fixtures/
+        ├── tracks.kml             # 測試用 KML 檔案
+        ├── tracks.kmz             # 測試用 KMZ 檔案（含 doc.kml）
+        ├── tracks_no_doc.kmz      # 測試用 KMZ 檔案（非 doc.kml）
+        └── empty.kmz              # 測試用空 KMZ 檔案
 ```
 
 ## 模組設計原則
@@ -88,13 +93,15 @@ applyTo: "src/**,tests/**,Cargo.toml"
 2. 在 `src/converter.rs` 中更新 `build_config()` 函數
 3. 若需驗證或預處理參數，編輯 `src/config.rs`
 
-### 修改 KML 解析邏輯
+### 修改 KML/KMZ 解析邏輯
 
-1. 若修改狀態機流程，編輯 `src/parser.rs`
+1. 若修改狀態機流程或副檔名判斷邏輯，編輯 `src/parser.rs`（包含 `extract_placemarks_with_paths()`、`extract_kml_from_kmz()`、`parse_kml_from_reader()`）
 2. 若修改軌跡計算（距離、時間等），編輯 `src/metadata.rs`
 3. 若修改路徑提取與分類邏輯，編輯 `src/path.rs`
 4. 若修改資料結構，更新 `src/metadata.rs`
-5. 使用 `tests/fixtures/tracks.kml` 驗證
+5. 使用 `tests/fixtures/tracks.kml`、`tests/fixtures/tracks.kmz` 等驗證
+
+> **KMZ 單檔限制**：目前 `extract_kml_from_kmz()` 只處理 KMZ 中的第一個 KML 檔案。若需支援多 KML 檔案合併，應在該函式中實現邏輯。
 
 ### 添加新的輸出格式
 

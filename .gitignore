@@ -207,4 +207,4 @@ $RECYCLE.BIN/
 *.kmz
 
 # But include test fixtures
-!tests/fixtures/*.kml
+!tests/fixtures/*.km[lz]

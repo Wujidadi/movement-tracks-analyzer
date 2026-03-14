@@ -1,15 +1,16 @@
 ---
 name: kml-parsing
-description: 本專案的 KML 檔案解析實現指南。說明流式 XML 解析的狀態機設計、座標點提取、軌跡詮釋資料結構化、效能優化與邊界情況處理。當使用者涉及 KML 解析改進、座標計算、時間處理或大型檔案效能時參照。
+description: 本專案的 KML/KMZ 檔案解析實現指南。說明流式 XML 解析的狀態機設計、座標點提取、軌跡詮釋資料結構化、KMZ 解壓縮策略、效能優化與邊界情況處理。當使用者涉及 KML/KMZ 解析改進、座標計算、時間處理或大型檔案效能時參照。
 ---
 
-# KML 檔案解析指南
+# KML/KMZ 檔案解析指南
 
 ## 技術棧
 
 | 工具      | 版本 | 用途                                                |
 | --------- | ---- | --------------------------------------------------- |
 | quick-xml | 0.39 | **流式 XML 解析**；狀態機模式，避免全檔案載入記憶體 |
+| zip       | 8.2  | KMZ（ZIP）檔案解壓縮；讀取壓縮檔中的 KML 內容       |
 | regex     | 1.12 | 正規表示式模式，用於 Description 內的時間字串解析   |
 | chrono    | 0.4  | 時間戳與日期時間處理                                |
 | serde     | 1.0  | 序列化/反序列化軌跡資料結構                         |
@@ -90,55 +91,66 @@ description: 本專案的 KML 檔案解析實現指南。說明流式 XML 解析
 ```rust
 // src/parser.rs
 
-use crate::{extract_categories, Result, TrackMetadata, END_TIME_PATTERN, START_TIME_PATTERN};
+use crate::{extract_categories, AnalyzerError, Result, TrackMetadata, END_TIME_PATTERN, START_TIME_PATTERN};
 use chrono::NaiveDateTime;
 use quick_xml::{events::Event, Reader};
-use std::{fs, io::BufReader, path::PathBuf};
+use std::{
+    fs,
+    io::{BufRead, BufReader, Cursor, Read},
+    path::PathBuf,
+};
 
-/// 從 KML 檔案中提取所有 Placemark 軌跡
+/// 從 KML 或 KMZ 檔案中提取所有 Placemark 軌跡
 pub fn extract_placemarks_with_paths(
     file_path: &PathBuf,
 ) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let is_kmz = file_path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("kmz"));
+
+    if is_kmz {
+        let kml_bytes = extract_kml_from_kmz(file_path)?;
+        let cursor = Cursor::new(kml_bytes);
+        let reader = BufReader::new(cursor);
+        parse_kml_from_reader(reader)
+    } else {
+        let file = fs::File::open(file_path)?;
+        let reader = BufReader::new(file);
+        parse_kml_from_reader(reader)
+    }
+}
+
+/// 從 KMZ（ZIP）檔案中提取第一個 KML 檔案的內容
+fn extract_kml_from_kmz(file_path: &PathBuf) -> Result<Vec<u8>> {
     let file = fs::File::open(file_path)?;
-    let reader = BufReader::new(file);
-    let mut xml_reader = Reader::from_reader(reader);
+    let mut archive = zip::ZipArchive::new(file)?;
 
-    let mut results = Vec::new();
-    let mut buf = Vec::new();
-    let mut folder_stack: Vec<String> = Vec::new();
-    let mut parser_state = ParserState::default();
-
-    loop {
-        match xml_reader.read_event_into(&mut buf) {
-            Ok(Event::Start(elem)) => {
-                let tag_name = String::from_utf8_lossy(elem.name().as_ref()).to_string();
-                handle_start_tag(&tag_name, &mut folder_stack, &mut parser_state);
-            }
-            Ok(Event::End(elem)) => {
-                let tag_name = String::from_utf8_lossy(elem.name().as_ref()).to_string();
-                handle_end_tag(&tag_name, &mut folder_stack, &mut parser_state, &mut results)?;
-            }
-            Ok(Event::Text(text)) => {
-                let content = String::from_utf8_lossy(text.as_ref()).to_string();
-                parser_state.append_text(&content, &mut folder_stack);
-            }
-            Ok(Event::CData(cdata)) => {
-                let content = String::from_utf8_lossy(cdata.as_ref()).to_string();
-                if parser_state.in_description {
-                    parser_state.current_description.push_str(&content);
-                }
-            }
-            Ok(Event::Eof) => break,
-            Err(e) => {
-                eprintln!("KML parsing error: {}", e);
-                break;
-            }
-            _ => {}
-        }
-        buf.clear();
+    // 優先尋找 doc.kml（KMZ 規範的預設主檔案）
+    if let Ok(mut entry) = archive.by_name("doc.kml") {
+        let mut buf = Vec::with_capacity(entry.size() as usize);
+        entry.read_to_end(&mut buf)?;
+        return Ok(buf);
     }
 
-    Ok(results)
+    // 退而求其次，尋找第一個 .kml 副檔名的檔案
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        if entry.name().to_ascii_lowercase().ends_with(".kml") {
+            let mut buf = Vec::with_capacity(entry.size() as usize);
+            entry.read_to_end(&mut buf)?;
+            return Ok(buf);
+        }
+    }
+
+    Err(AnalyzerError::KmzError(
+        "No KML file found in KMZ archive".to_string(),
+    ))
+}
+
+/// 從實作 BufRead 的來源解析 KML 內容
+fn parse_kml_from_reader<R: BufRead>(reader: R) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let mut xml_reader = Reader::from_reader(reader);
+    // ... 原有的 XML 事件迴圈邏輯 ...
 }
 ```
 
@@ -358,6 +370,8 @@ pub fn extract_categories(folder_path: &[String]) -> (String, String, String, St
 | 時間戳缺失          | `extract_times()` 回傳 `None`，該 Placemark 不會寫入結果 |
 | 超大檔案（GB 級別） | 流式解析確保恆定記憶體使用，詳見 PERFORMANCE.md          |
 | 非 UTF-8 編碼 KML   | 使用 BufReader 與錯誤恢復，或清楚提示使用者              |
+| KMZ 中無 KML 檔案   | 回傳 `AnalyzerError::KmzError("No KML file found...")`   |
+| KMZ 中多個 KML 檔案 | **僅處理第一個**（優先 `doc.kml`，否則取首個 `.kml`）    |
 
 ### 錯誤處理範例
 
@@ -371,13 +385,33 @@ pub fn extract_placemarks_with_paths(
 ) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
     let file = fs::File::open(file_path)?;  // io::Error 自動轉換為 AnalyzerError::Io
 
-    // ...解析邏輯...
+    // KMZ 相關錯誤（ZipError）自動轉換為 AnalyzerError::KmzError
+    // KML 解析錯誤透過 ? 操作符回傳
 
     Ok(results)
 }
 ```
 
-`AnalyzerError` 變體包含：`Io`、`ParsingError`、`TimeParsingError`、`CoordinateParsingError`、`FileNotFound`、`Other`。
+`AnalyzerError` 變體包含：`Io`、`ParsingError`、`TimeParsingError`、`CoordinateParsingError`、`FileNotFound`、`KmzError`、`Other`。
+
+---
+
+## KMZ 檔案處理策略
+
+### 解壓縮流程
+
+KMZ 是 ZIP 格式的壓縮檔，內含 KML 檔案。解析 KMZ 時的處理流程：
+
+1. 開啟 ZIP 壓縮檔（`zip::ZipArchive`）
+2. 優先尋找 `doc.kml`（KMZ 規範的預設主檔案），若不存在則取**第一個** `.kml` 副檔名的檔案
+3. 將 KML 內容讀入記憶體（`Vec<u8>`）
+4. 以 `Cursor` 包裝後透過泛型 `BufRead` 介面送入與 KML 相同的流式解析器
+
+### 單檔限制
+
+> ⚠️ **重要限制**：目前 `extract_kml_from_kmz()` **只處理 KMZ 中的第一個 KML 檔案**。若 KMZ 包含多個 KML，工具不會合併、迭代或提示使用者。
+
+此限制符合 KMZ 規範的主檔案概念（根目錄的 `doc.kml`），適用於大多數實際場景。若需支援多 KML 合併，應擴展該函式的邏輯。
 
 ---
 
@@ -397,7 +431,7 @@ pub fn extract_placemarks_with_paths(
 
 ---
 
-## 測試 KML 解析
+## 測試 KML/KMZ 解析
 
 ### 使用測試夾具
 
@@ -419,16 +453,26 @@ fn test_parse_sample_kml() {
 }
 
 #[test]
-fn test_coordinates_parsing() {
-    // parse_coordinates 為 parser.rs 的私有函式，
-    // 透過整合測試間接驗證：
+fn test_parse_sample_kmz() {
     use movement_tracks_analyzer::extract_placemarks_with_paths;
     use std::path::PathBuf;
 
-    let tracks = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kml")).unwrap();
-    for (_path, metadata) in &tracks {
-        assert!(!metadata.coordinates.is_empty(), "每個軌跡應至少有一個座標點");
-    }
+    let result = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/tracks.kmz"));
+    assert!(result.is_ok());
+
+    let tracks = result.unwrap();
+    assert!(!tracks.is_empty());
+}
+
+#[test]
+fn test_kmz_no_kml_inside() {
+    use movement_tracks_analyzer::{extract_placemarks_with_paths, AnalyzerError};
+    use std::path::PathBuf;
+
+    let result = extract_placemarks_with_paths(&PathBuf::from("tests/fixtures/empty.kmz"));
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    assert!(matches!(err, AnalyzerError::KmzError(_)));
 }
 ```
 

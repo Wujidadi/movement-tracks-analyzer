@@ -3,6 +3,8 @@
 > [!IMPORTANT]
 > **語言規則（最高優先，無例外）：所有回應、說明、文件、工具呼叫的 explanation 欄位，一律使用繁體中文（台灣），並採用台灣標準翻譯和慣用術語。無論處理任何技術問題，此規則不得被覆蓋或忽略。回應文字中不得夾雜日語、韓語或其他非中文詞彙（包含感嘆句、慣用語）。**
 
+> **重要提示**：本檔案 `.github/AGENTS.md` 是**原始檔案**。根目錄的 `AGENTS.md` 是本檔案的符號連結（Symbolic Link），會自動與本檔案保持同步。修改時應直接編輯本檔案（`.github/AGENTS.md`），**勿修改根目錄版本**，否則會造成改動內容重複且難以同步。
+
 本文件規範 AI 在本專案中的行為準則、作業流程、命令執行方式與禁止事項。  
 語言專項規範請參閱：
 
@@ -27,7 +29,9 @@
 
 ## 專案概覽
 
-Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具**，透過解析 KML 檔案，提取軌跡的時間、距離、座標等資訊，並支援多種輸出格式（JSON、CSV、TSV、表格）。
+Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具**，透過解析 KML/KMZ 檔案，提取軌跡的時間、距離、座標等資訊，並支援多種輸出格式（JSON、CSV、TSV、表格）。
+
+> **KMZ 支援限制**：目前僅支援解析 KMZ 檔案中的**單一 KML 內容**。若 KMZ 包含多個 KML 檔案，工具只會處理其中第一個（優先 `doc.kml`，否則取首個 `.kml` 檔）。
 
 ## 專案技術概覽
 
@@ -36,6 +40,7 @@ Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具**，透過解析 KML
 | 語言     | Rust 2024 Edition                     |
 | 命令行   | Clap（derive 宏風格）                 |
 | XML 解析 | quick-xml（流式解析，狀態機模式）     |
+| 壓縮檔   | zip（KMZ 解壓縮）                     |
 | 序列化   | serde + serde_json                    |
 | 時間處理 | chrono                                |
 | 正規表示 | regex                                 |
@@ -47,7 +52,7 @@ Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具**，透過解析 KML
 - 專案採用**雙 crate 架構**：二進位 crate（`src/main.rs`）負責 CLI 入口與流程編排，函式庫 crate（`src/lib.rs`）導出核心解析邏輯。二進位 crate 內的模組（`cli`、`config`、`converter`、`output`、`path_resolver`）透過 `mod` 宣告引入；跨 crate 引用使用 `use movement_tracks_analyzer::{...}`。
 - 主程式入口為 `src/main.rs`（26 行），採用 `run()` 函式模式搭配自訂 `Result` 型態，錯誤由 `eprintln!` 輸出後以非零狀態碼退出。
 - 核心邏輯保持在 `src/lib.rs` 導出的模組中（`error`、`format`、`metadata`、`parser`、`path`、`regex`），確保可作為函式庫被重複使用。
-- 錯誤處理使用自訂 `AnalyzerError` 枚舉（定義於 `src/error.rs`），搭配 `Result<T>` 型態別名；包含 6 種錯誤變體（`Io`、`ParsingError`、`TimeParsingError`、`CoordinateParsingError`、`FileNotFound`、`Other`），並實作 `From` traits 支援自動轉換。
+- 錯誤處理使用自訂 `AnalyzerError` 枚舉（定義於 `src/error.rs`），搭配 `Result<T>` 型態別名；包含 7 種錯誤變體（`Io`、`ParsingError`、`TimeParsingError`、`CoordinateParsingError`、`FileNotFound`、`KmzError`、`Other`），並實作 `From` traits 支援自動轉換。
 
 ## 效能與優化
 
@@ -57,16 +62,16 @@ Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具**，透過解析 KML
 ## 設定與環境
 
 - 命令行參數定義於 `src/cli.rs`，透過 Clap derive 宏實現。
-- 檔案路徑解析由 `src/path_resolver.rs` 負責，預設會嘗試 `移動軌跡.kml` 與 `Movement Tracks.kml`。
+- 檔案路徑解析由 `src/path_resolver.rs` 負責，預設會依序嘗試 `移動軌跡.kml`、`Movement Tracks.kml`、`移動軌跡.kmz`、`Movement Tracks.kmz`（KML 優先）。
 
 ## 驗證與命令執行
 
-- 單元測試應包含於模組內的 `#[cfg(test)]` 區塊（目前 24 個，涵蓋 `path`、`metadata`、`regex`、`error` 四個模組）。
+- 單元測試應包含於模組內的 `#[cfg(test)]` 區塊（目前 26 個，涵蓋 `path`、`metadata`、`regex`、`error` 四個模組）。
 - 集成測試應放在 `tests/` 目錄下的 Rust 檔案，每個檔案為獨立的 crate。
 - 公開 API 應附帶 doc-tests（目前 5 個，涵蓋 `lib.rs`、`parser.rs`、`path.rs`、`metadata.rs`、`format.rs`）。
 - 執行測試使用 `cargo test`；執行特定測試使用 `cargo test test_name`。
 - 編譯前應執行 `cargo check` 驗證程式碼無誤。
-- 當涉及 KML 檔案解析改動時，應使用 `tests/fixtures/tracks.kml` 進行驗證。
+- 當涉及 KML/KMZ 檔案解析改動時，應使用 `tests/fixtures/tracks.kml` 及 `tests/fixtures/tracks.kmz` 等進行驗證。
 
 ## 文件說明
 

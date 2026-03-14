@@ -1,4 +1,4 @@
-use std::{fmt, io};
+use std::{error::Error, fmt, io};
 
 /// 分析器錯誤類型
 #[derive(Debug)]
@@ -13,6 +13,8 @@ pub enum AnalyzerError {
     CoordinateParsingError(String),
     /// 檔案不存在
     FileNotFound(String),
+    /// KMZ 檔案處理錯誤
+    KmzError(String),
     /// 其他錯誤
     Other(String),
 }
@@ -27,12 +29,13 @@ impl fmt::Display for AnalyzerError {
                 write!(f, "Coordinate parsing error: {}", msg)
             }
             AnalyzerError::FileNotFound(path) => write!(f, "File not found: {}", path),
+            AnalyzerError::KmzError(msg) => write!(f, "KMZ error: {}", msg),
             AnalyzerError::Other(msg) => write!(f, "{}", msg),
         }
     }
 }
 
-impl std::error::Error for AnalyzerError {}
+impl Error for AnalyzerError {}
 
 /// 從 io::Error 自動轉換為 AnalyzerError
 impl From<io::Error> for AnalyzerError {
@@ -52,6 +55,13 @@ impl From<String> for AnalyzerError {
 impl From<&str> for AnalyzerError {
     fn from(error: &str) -> Self {
         AnalyzerError::Other(error.to_string())
+    }
+}
+
+/// 從 ZipError 自動轉換為 AnalyzerError
+impl From<zip::result::ZipError> for AnalyzerError {
+    fn from(error: zip::result::ZipError) -> Self {
+        AnalyzerError::KmzError(error.to_string())
     }
 }
 
@@ -96,5 +106,21 @@ mod tests {
 
         let error_result: Result<String> = Err(AnalyzerError::Other("Error".to_string()));
         assert!(error_result.is_err());
+    }
+
+    #[test]
+    fn test_analyzer_error_kmz() {
+        let err = AnalyzerError::KmzError("No KML file found in KMZ archive".to_string());
+        assert_eq!(
+            err.to_string(),
+            "KMZ error: No KML file found in KMZ archive"
+        );
+    }
+
+    #[test]
+    fn test_analyzer_error_from_zip_error() {
+        let zip_err = zip::result::ZipError::FileNotFound;
+        let err: AnalyzerError = zip_err.into();
+        assert!(matches!(err, AnalyzerError::KmzError(_)));
     }
 }
