@@ -119,8 +119,8 @@ Better Highlights 與 SonarQube 的差異：
 
 1. **確認 Better Highlights 的官方文檔** - 了解其確切計算方法
 2. **根據專案需求選擇標準**：
-    - 如果強調代碼簡潔性 → 使用 Better Highlights 的簡化標準
-    - 如果遵循業界標準 → 使用 SonarQube 標準
+   - 如果強調代碼簡潔性 → 使用 Better Highlights 的簡化標準
+   - 如果遵循業界標準 → 使用 SonarQube 標準
 3. **統一團隊規範** - 決定使用哪一套複雜度計算方法
 
 ---

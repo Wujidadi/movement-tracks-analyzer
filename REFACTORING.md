@@ -239,44 +239,44 @@ fn format_cell(text: &str, width: usize, col_index: usize) -> String {
    為各模組添加 #[cfg(test)] 測試模組
 
    **實現細節**：
-    - ✅ **path.rs**：5 個單元測試
-        - `test_extract_categories_full_path()` - 完整路徑提取
-        - `test_extract_categories_with_spaces()` - 空格處理
-        - `test_extract_categories_with_three_meaningful_elements()` - 多層路徑
-        - `test_extract_categories_single_non_root_element()` - 月份格式檢測
-        - `test_extract_categories_empty_path()` - 空路徑邊界
+   - ✅ **path.rs**：5 個單元測試
+     - `test_extract_categories_full_path()` - 完整路徑提取
+     - `test_extract_categories_with_spaces()` - 空格處理
+     - `test_extract_categories_with_three_meaningful_elements()` - 多層路徑
+     - `test_extract_categories_single_non_root_element()` - 月份格式檢測
+     - `test_extract_categories_empty_path()` - 空路徑邊界
 
-    - ✅ **metadata.rs**：7 個單元測試
-        - `test_duration_seconds()` - 時間計算（正常情況）
-        - `test_duration_same_time()` - 相同時間點
-        - `test_duration_negative()` - 反向時間差
-        - `test_calculate_distance_multiple_points()` - 多點距離計算
-        - `test_calculate_distance_single_point()` - 單點距離
-        - `test_calculate_distance_two_points()` - 雙點距離
-        - `test_metadata_creation()` - 結構體創建
+   - ✅ **metadata.rs**：7 個單元測試
+     - `test_duration_seconds()` - 時間計算（正常情況）
+     - `test_duration_same_time()` - 相同時間點
+     - `test_duration_negative()` - 反向時間差
+     - `test_calculate_distance_multiple_points()` - 多點距離計算
+     - `test_calculate_distance_single_point()` - 單點距離
+     - `test_calculate_distance_two_points()` - 雙點距離
+     - `test_metadata_creation()` - 結構體創建
 
-    - ✅ **regex.rs**：7 個單元測試
-        - `test_start_time_pattern_matches()` - 開始時間匹配
-        - `test_start_time_pattern_captures()` - 開始時間捕獲
-        - `test_start_time_pattern_with_spaces()` - 空格容錯
-        - `test_end_time_pattern_matches()` - 結束時間匹配
-        - `test_end_time_pattern_captures()` - 結束時間捕獲
-        - `test_end_time_pattern_without_br()` - 換行字元處理
-        - `test_both_patterns_in_html()` - 組合匹配
+   - ✅ **regex.rs**：7 個單元測試
+     - `test_start_time_pattern_matches()` - 開始時間匹配
+     - `test_start_time_pattern_captures()` - 開始時間捕獲
+     - `test_start_time_pattern_with_spaces()` - 空格容錯
+     - `test_end_time_pattern_matches()` - 結束時間匹配
+     - `test_end_time_pattern_captures()` - 結束時間捕獲
+     - `test_end_time_pattern_without_br()` - 換行字元處理
+     - `test_both_patterns_in_html()` - 組合匹配
 
-    - ✅ **error.rs**：7 個單元測試
-        - `test_analyzer_error_display()` - 錯誤顯示
-        - `test_analyzer_error_parsing()` - 解析錯誤訊息
-        - `test_analyzer_error_from_string()` - 字串轉換
-        - `test_analyzer_error_from_io_error()` - IO 錯誤轉換
-        - `test_result_type_alias()` - Result 類型別名
-        - `test_analyzer_error_kmz()` - KMZ 錯誤訊息
-        - `test_analyzer_error_from_zip_error()` - ZipError 轉換
+   - ✅ **error.rs**：7 個單元測試
+     - `test_analyzer_error_display()` - 錯誤顯示
+     - `test_analyzer_error_parsing()` - 解析錯誤訊息
+     - `test_analyzer_error_from_string()` - 字串轉換
+     - `test_analyzer_error_from_io_error()` - IO 錯誤轉換
+     - `test_result_type_alias()` - Result 類型別名
+     - `test_analyzer_error_kmz()` - KMZ 錯誤訊息
+     - `test_analyzer_error_from_zip_error()` - ZipError 轉換
 
    **測試統計**：
-    - 總測試數：26
-    - 覆蓋模組：4（path, metadata, regex, error）
-    - 全部通過：✅
+   - 總測試數：26
+   - 覆蓋模組：4（path, metadata, regex, error）
+   - 全部通過：✅
 
 2. **文件註解** ✅ **已完成**
 
@@ -300,11 +300,11 @@ fn format_cell(text: &str, width: usize, col_index: usize) -> String {
    ```
 
    **實現細節**：
-    - ✅ lib.rs：添加庫級別文檔（功能介紹、範例）
-    - ✅ parser.rs：`extract_placemarks_with_paths()` 函式文檔（參數、返回值、效能、範例）
-    - ✅ path.rs：`extract_categories()` 函式文檔（返回值詳解、使用範例）
-    - ✅ format.rs：`format_output()` 函式文檔（格式詳解、使用範例）
-    - ✅ metadata.rs：`TrackMetadata` 結構體和方法文檔（欄位說明、算法解釋）
+   - ✅ lib.rs：添加庫級別文檔（功能介紹、範例）
+   - ✅ parser.rs：`extract_placemarks_with_paths()` 函式文檔（參數、返回值、效能、範例）
+   - ✅ path.rs：`extract_categories()` 函式文檔（返回值詳解、使用範例）
+   - ✅ format.rs：`format_output()` 函式文檔（格式詳解、使用範例）
+   - ✅ metadata.rs：`TrackMetadata` 結構體和方法文檔（欄位說明、算法解釋）
 
 3. **錯誤處理** ✅ **已完成**
 
@@ -322,12 +322,12 @@ fn format_cell(text: &str, width: usize, col_index: usize) -> String {
    ```
 
    **實現細節**：
-    - ✅ 新增 `error.rs` 模組（57 行）
-    - ✅ 實現 `Display` 和 `Error` traits
-    - ✅ 提供自動錯誤轉換（`From` implementations）
-    - ✅ 所有函式返回 `Result<T>` 別名（簡潔）
-    - ✅ 優雅的錯誤顯示（不是 Debug 格式）
-    - ✅ 更新所有相關模組（parser、path_resolver、output、converter）
+   - ✅ 新增 `error.rs` 模組（57 行）
+   - ✅ 實現 `Display` 和 `Error` traits
+   - ✅ 提供自動錯誤轉換（`From` implementations）
+   - ✅ 所有函式返回 `Result<T>` 別名（簡潔）
+   - ✅ 優雅的錯誤顯示（不是 Debug 格式）
+   - ✅ 更新所有相關模組（parser、path_resolver、output、converter）
 
 ## 相關閱讀
 

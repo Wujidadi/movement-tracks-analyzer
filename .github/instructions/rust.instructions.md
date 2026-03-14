@@ -96,11 +96,11 @@ applyTo: "src/**,tests/**,Cargo.toml"
 ### 修改 KML/KMZ 解析邏輯
 
 1. 若修改狀態機流程，編輯 `src/parser.rs`：
-    - 主入口：`extract_placemarks_with_paths()` → `parse_kmz_file()` / `parse_kml_file()`
-    - KMZ 提取：`extract_kml_from_kmz()` → `find_doc_kml()` / `find_first_kml()`
-    - XML 事件迴圈：`parse_kml_from_reader()` → `read_all_events()` → `process_event()`
-    - 標籤處理：`handle_start_tag()` / `handle_end_tag()` → `finalize_placemark()`
-    - 狀態管理：`ParserState` 使用 `ActiveTextField` 列舉（`None`/`Name`/`Description`/`Coordinates`/`FolderName`）管理當前活躍欄位
+   - 主入口：`extract_placemarks_with_paths()` → `parse_kmz_file()` / `parse_kml_file()`
+   - KMZ 提取：`extract_kml_from_kmz()` → `find_doc_kml()` / `find_first_kml()`
+   - XML 事件迴圈：`parse_kml_from_reader()` → `read_all_events()` → `process_event()`
+   - 標籤處理：`handle_start_tag()` / `handle_end_tag()` → `finalize_placemark()`
+   - 狀態管理：`ParserState` 使用 `ActiveTextField` 列舉（`None`/`Name`/`Description`/`Coordinates`/`FolderName`）管理當前活躍欄位
 2. 若修改軌跡計算（距離、時間等），編輯 `src/metadata.rs`（距離計算使用 `haversine_distance_km()` + `windows(2)` 迭代器）
 3. 若修改路徑提取與分類邏輯，編輯 `src/path.rs`（`extract_categories()` → `filter_meaningful_path()` → `categorize_by_depth()`）
 4. 若修改資料結構，更新 `src/metadata.rs`

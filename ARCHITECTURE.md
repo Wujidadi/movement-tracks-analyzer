@@ -73,69 +73,69 @@ fn run() -> movement_tracks_analyzer::Result<()> {
 
 - **職責**：命令行參數定義和輸出使用說明
 - **內容**：
-    - `HELP_TEMPLATE` - 使用說明模板
-    - `Args` 結構體 - 參數定義
-    - `OutputTypeArg` 枚舉 - 輸出目標
-    - `OutputFormatArg` 枚舉 - 輸出格式
+  - `HELP_TEMPLATE` - 使用說明模板
+  - `Args` 結構體 - 參數定義
+  - `OutputTypeArg` 枚舉 - 輸出目標
+  - `OutputFormatArg` 枚舉 - 輸出格式
 
 ### `config.rs` (16 行)
 
 - **職責**：配置結構體定義
 - **內容**：
-    - `Config` 結構體
-    - `OutputType` 枚舉
+  - `Config` 結構體
+  - `OutputType` 枚舉
 
 ### `path_resolver.rs` (60 行)
 
 - **職責**：KML/KMZ 檔案路徑解析
 - **函式**：
-    - `resolve_kml_file()` - 主函式
-    - `resolve_cli_file()` - 解析命令列指定的檔案路徑
-    - `find_default_kml_file()` - 從預設目錄中尋找 KML/KMZ 檔案
-    - `check_exe_directory()` - 檢查執行檔目錄
-    - `check_current_directory()` - 檢查當前目錄
-    - `check_path_with_filenames()` - 工具函式
+  - `resolve_kml_file()` - 主函式
+  - `resolve_cli_file()` - 解析命令列指定的檔案路徑
+  - `find_default_kml_file()` - 從預設目錄中尋找 KML/KMZ 檔案
+  - `check_exe_directory()` - 檢查執行檔目錄
+  - `check_current_directory()` - 檢查當前目錄
+  - `check_path_with_filenames()` - 工具函式
 - **預設檔名**：依序搜尋 `移動軌跡.kml`、`Movement Tracks.kml`、`移動軌跡.kmz`、`Movement Tracks.kmz`（KML 優先）
 
 ### `output.rs` (73 行)
 
 - **職責**：結果輸出和檔案儲存
 - **函式**：
-    - `output_results()` - 輸出主函式
-    - `dispatch_output()` - 依輸出目標分派結果
-    - `save_to_file()` - 儲存到檔案
-    - `determine_file_path()` - 確定輸出路徑
-    - `resolve_export_path()` - 解析使用者指定的匯出路徑
-    - `has_file_extension()` - 判斷路徑是否含副檔名
-    - `get_default_filename()` - 取得預設檔名
+  - `output_results()` - 輸出主函式
+  - `dispatch_output()` - 依輸出目標分派結果
+  - `save_to_file()` - 儲存到檔案
+  - `determine_file_path()` - 確定輸出路徑
+  - `resolve_export_path()` - 解析使用者指定的匯出路徑
+  - `has_file_extension()` - 判斷路徑是否含副檔名
+  - `get_default_filename()` - 取得預設檔名
 
 ### `converter.rs` (46 行)
 
 - **職責**：命令行參數轉換
 - **函式**：
-    - `build_config()` - 參數到配置的轉換（主入口）
-    - `map_output_type()` - 輸出目標映射
-    - `map_output_format()` - 輸出格式映射
-    - `resolve_format()` - 解析最終輸出格式（表格 + 檔案輸出時自動降級為 CSV）
+  - `build_config()` - 參數到配置的轉換（主入口）
+  - `map_output_type()` - 輸出目標映射
+  - `map_output_format()` - 輸出格式映射
+  - `resolve_format()` - 解析最終輸出格式（表格 + 檔案輸出時自動降級為 CSV）
 
 ### `error.rs` (126 行)
 
 - **職責**：自訂錯誤類型定義
 - **內容**：
-    - `AnalyzerError` 枚舉 - 7 種錯誤類型
-    - `Display` trait 實現 - 使用者友好的錯誤訊息
-    - `Error` trait 實現 - 標準錯誤接口
-    - `From` implementations - 自動錯誤轉換
-    - `Result<T>` 型態別名 - 便捷的 Result 類型
+  - `AnalyzerError` 枚舉 - 7 種錯誤類型
+  - `Display` trait 實現 - 使用者友好的錯誤訊息
+  - `Error` trait 實現 - 標準錯誤接口
+  - `From` implementations - 自動錯誤轉換
+  - `Result<T>` 型態別名 - 便捷的 Result 類型
 
 ### `regex.rs` (77 行)
 
 - **職責**：正規表示式模式定義
 - **內容**：
-    - `DATETIME_PATTERN` - 日期時間格式常數
-    - `START_TIME_PATTERN` - 提取開始時間的正規表達式
-    - `END_TIME_PATTERN` - 提取結束時間的正規表達式
-    - `create_time_pattern()` - 參數化產生時間模式的函式
+  - `DATETIME_PATTERN` - 日期時間格式常數
+  - `START_TIME_PATTERN` - 提取開始時間的正規表達式
+  - `END_TIME_PATTERN` - 提取結束時間的正規表達式
+  - `create_time_pattern()` - 參數化產生時間模式的函式
 
 ### `lib.rs` (49 行)
 
@@ -149,55 +149,55 @@ fn run() -> movement_tracks_analyzer::Result<()> {
 - **職責**：KML/KMZ 流式解析
 - **設計**：`ActiveTextField` 列舉 + 狀態機模式
 - **核心函式**：
-    - `extract_placemarks_with_paths()` - 主解析函式（依副檔名分流 KML/KMZ）
-    - `parse_kmz_file()` / `parse_kml_file()` - KMZ/KML 分流解析
-    - `extract_kml_from_kmz()` - 從 KMZ 壓縮檔中提取 KML 內容
-    - `find_doc_kml()` / `find_first_kml()` - KMZ 中的 KML 搜尋策略
-    - `parse_kml_from_reader()` - 泛型 BufRead 解析器入口
-    - `read_all_events()` - XML 事件迴圈
-    - `process_event()` - 單一事件分派
-    - `handle_start_tag()` - 開始標籤處理
-    - `handle_end_tag()` - 結束標籤處理
-    - `finalize_placemark()` - Placemark 完成處理
-    - `parse_coordinates()` / `parse_single_coordinate()` - 座標解析
-    - `extract_times()` - 時間提取
+  - `extract_placemarks_with_paths()` - 主解析函式（依副檔名分流 KML/KMZ）
+  - `parse_kmz_file()` / `parse_kml_file()` - KMZ/KML 分流解析
+  - `extract_kml_from_kmz()` - 從 KMZ 壓縮檔中提取 KML 內容
+  - `find_doc_kml()` / `find_first_kml()` - KMZ 中的 KML 搜尋策略
+  - `parse_kml_from_reader()` - 泛型 BufRead 解析器入口
+  - `read_all_events()` - XML 事件迴圈
+  - `process_event()` - 單一事件分派
+  - `handle_start_tag()` - 開始標籤處理
+  - `handle_end_tag()` - 結束標籤處理
+  - `finalize_placemark()` - Placemark 完成處理
+  - `parse_coordinates()` / `parse_single_coordinate()` - 座標解析
+  - `extract_times()` - 時間提取
 - **狀態管理**：`ActiveTextField` 列舉（`None`/`Name`/`Description`/`Coordinates`/`FolderName`）取代 4 個布林旗標，天然互斥
 
 ### `path.rs` (196 行)
 
 - **職責**：路徑提取和分類
 - **函式**：
-    - `extract_categories()` - 提取分類/活動/年份/月份（主入口）
-    - `filter_meaningful_path()` - 過濾非有效分類的路徑元素
-    - `categorize_by_depth()` - 根據路徑深度建立分類元組
-    - `create_category_tuple()` - 構建分類元組
-    - `empty_tuple()` - 返回空分類元組
-    - `classify_single_element()` - 單一元素路徑處理
-    - `is_month_format()` - 判斷字串是否為月份格式
+  - `extract_categories()` - 提取分類/活動/年份/月份（主入口）
+  - `filter_meaningful_path()` - 過濾非有效分類的路徑元素
+  - `categorize_by_depth()` - 根據路徑深度建立分類元組
+  - `create_category_tuple()` - 構建分類元組
+  - `empty_tuple()` - 返回空分類元組
+  - `classify_single_element()` - 單一元素路徑處理
+  - `is_month_format()` - 判斷字串是否為月份格式
 
 ### `metadata.rs` (195 行)
 
 - **職責**：軌跡資料結構和計算
 - **結構**：`TrackMetadata`
 - **方法**：
-    - `calculate_distance()` - 使用 `windows(2)` 迭代器計算軌跡距離
-    - `duration_seconds()` - 時間計算
+  - `calculate_distance()` - 使用 `windows(2)` 迭代器計算軌跡距離
+  - `duration_seconds()` - 時間計算
 - **獨立函式**：
-    - `haversine_distance_km()` - 半正矢（Haversine）公式（兩點間大圓距離）
+  - `haversine_distance_km()` - 半正矢（Haversine）公式（兩點間大圓距離）
 
 ### `format.rs` (310 行)
 
 - **職責**：輸出格式化
 - **支援格式**：JSON、CSV、TSV、Table（命令行表格）
 - **函式**：
-    - `format_output()` - 統一格式化介面
-    - `format_json()`
-    - `format_csv()` / `format_csv_row()`
-    - `format_tsv()` / `format_tsv_row()`
-    - `format_table()` → `format_header_row()` / `format_separator_row()` / `format_data_rows()` / `format_single_data_row()`
-    - `calculate_column_widths()` / `update_widths_from_row()` - 欄寬計算
-    - `format_cell()` / `pad_text()` / `is_right_aligned_column()` - 單元格格式化（支援 Unicode）
-    - `format_row_data()` - 格式化軌跡資料為字串陣列
+  - `format_output()` - 統一格式化介面
+  - `format_json()`
+  - `format_csv()` / `format_csv_row()`
+  - `format_tsv()` / `format_tsv_row()`
+  - `format_table()` → `format_header_row()` / `format_separator_row()` / `format_data_rows()` / `format_single_data_row()`
+  - `calculate_column_widths()` / `update_widths_from_row()` - 欄寬計算
+  - `format_cell()` / `pad_text()` / `is_right_aligned_column()` - 單元格格式化（支援 Unicode）
+  - `format_row_data()` - 格式化軌跡資料為字串陣列
 - **共用常數**：`TABLE_HEADERS` - 表格標題陣列
 
 ## 🚀 資料流
