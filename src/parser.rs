@@ -71,11 +71,20 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
 pub fn extract_placemarks_with_paths(
     file_path: &PathBuf,
 ) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let root_name = file_stem(file_path);
     if is_kmz_file(file_path) {
-        parse_kmz_file(file_path)
+        parse_kmz_file(file_path, &root_name)
     } else {
-        parse_kml_file(file_path)
+        parse_kml_file(file_path, &root_name)
     }
+}
+
+/// 取得檔案名稱（不含副檔名），用作 KML 根節點過濾依據
+fn file_stem(file_path: &PathBuf) -> String {
+    file_path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// 判斷檔案是否為 KMZ 格式
@@ -86,18 +95,18 @@ fn is_kmz_file(file_path: &PathBuf) -> bool {
 }
 
 /// 解析 KMZ 檔案
-fn parse_kmz_file(file_path: &PathBuf) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+fn parse_kmz_file(file_path: &PathBuf, root_name: &str) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
     let kml_bytes = extract_kml_from_kmz(file_path)?;
     let cursor = Cursor::new(kml_bytes);
     let reader = BufReader::new(cursor);
-    parse_kml_from_reader(reader)
+    parse_kml_from_reader(reader, root_name)
 }
 
 /// 解析 KML 檔案
-fn parse_kml_file(file_path: &PathBuf) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+fn parse_kml_file(file_path: &PathBuf, root_name: &str) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
     let file = fs::File::open(file_path)?;
     let reader = BufReader::new(file);
-    parse_kml_from_reader(reader)
+    parse_kml_from_reader(reader, root_name)
 }
 
 /// 從 KMZ（ZIP）檔案中提取第一個 KML 檔案的內容
@@ -160,6 +169,8 @@ struct ParserState {
     current_name: String,
     current_description: String,
     current_coordinates_str: String,
+    /// 檔案名稱（不含副檔名），用於過濾根節點
+    root_name: String,
 }
 
 impl ParserState {
@@ -233,11 +244,14 @@ fn append_to_folder_name(folder_stack: &mut Vec<String>, content: &str) {
 }
 
 /// 從實作 BufRead 的來源解析 KML 內容
-fn parse_kml_from_reader<R: BufRead>(reader: R) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+fn parse_kml_from_reader<R: BufRead>(reader: R, root_name: &str) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
     let mut xml_reader = Reader::from_reader(reader);
     let mut results = Vec::new();
     let mut folder_stack: Vec<String> = Vec::new();
-    let mut state = ParserState::default();
+    let mut state = ParserState {
+        root_name: root_name.to_string(),
+        ..ParserState::default()
+    };
 
     read_all_events(&mut xml_reader, &mut folder_stack, &mut state, &mut results)?;
 
@@ -331,7 +345,7 @@ fn finalize_placemark(
     state.in_placemark = false;
     if let Some((start_time, end_time)) = extract_times(&state.current_description) {
         let coordinates = parse_coordinates(&state.current_coordinates_str)?;
-        let (category, activity, year, month) = extract_categories(folder_stack);
+        let (category, activity, year, month) = extract_categories(folder_stack, &state.root_name);
 
         let metadata = TrackMetadata {
             name: state.current_name.clone(),

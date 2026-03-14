@@ -200,7 +200,6 @@ fn extract_functions_from_file(filepath: &str) -> Result<Vec<(String, String)>, 
                 match chars[brace_start] {
                     '(' => paren_depth += 1,
                     ')' => {
-                        paren_depth -= 1;
                         // 簽名結束，現在掃描返回型別和 where 子句
                         brace_start += 1;
                         // 跳過返回型別和 where 子句

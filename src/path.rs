@@ -1,10 +1,12 @@
 /// 從 KML 資料夾路徑中提取軌跡分類資訊
 ///
 /// 根據目錄層級深度自動識別分類、活動、年份和月份。
+/// 先以 `root_name`（來自檔案名稱）過濾掉根節點，再依剩餘深度進行分類。
 ///
 /// # Arguments
 ///
 /// * `folder_path` - KML 路徑中的資料夾名稱陣列（由上而下）
+/// * `root_name` - KML/KMZ 檔案名稱（不含副檔名），用於過濾根節點
 ///
 /// # Returns
 ///
@@ -29,23 +31,23 @@
 ///     "2026-03".to_string(),
 /// ];
 ///
-/// let (category, activity, year, month) = extract_categories(&path);
-/// // With 5 elements, uses pattern (len-4, len-3, len-2, len-1) = (1, 2, 3, 4)
+/// // 根節點名稱 "移動軌跡" 與檔名一致，會被過濾
+/// let (category, activity, year, month) = extract_categories(&path, "移動軌跡");
 /// assert_eq!(category, "戶外運動");
 /// assert_eq!(activity, "步行");
 /// assert_eq!(year, "2026");
 /// assert_eq!(month, "2026-03");
 /// ```
-pub fn extract_categories(folder_path: &[String]) -> (String, String, String, String) {
-    let meaningful_path = filter_meaningful_path(folder_path);
+pub fn extract_categories(folder_path: &[String], root_name: &str) -> (String, String, String, String) {
+    let meaningful_path = filter_meaningful_path(folder_path, root_name);
     categorize_by_depth(&meaningful_path)
 }
 
-/// 過濾掉非有效分類的路徑元素
-fn filter_meaningful_path(folder_path: &[String]) -> Vec<&String> {
+/// 過濾掉根節點名稱，僅保留有效分類的路徑元素
+fn filter_meaningful_path<'a>(folder_path: &'a [String], root_name: &str) -> Vec<&'a String> {
     folder_path
         .iter()
-        .filter(|name| !name.contains("(Example)") && !name.contains("Movement Tracks"))
+        .filter(|name| name.as_str() != root_name)
         .collect()
 }
 
@@ -128,7 +130,7 @@ mod tests {
             "2026-03".to_string(),
         ];
 
-        let (cat, act, year, month) = extract_categories(&path);
+        let (cat, act, year, month) = extract_categories(&path, "移動軌跡");
         assert_eq!(cat, "戶外運動");
         assert_eq!(act, "步行");
         assert_eq!(year, "2026");
@@ -145,8 +147,7 @@ mod tests {
             "2026-02".to_string(),
         ];
 
-        let (cat, act, year, month) = extract_categories(&path);
-        // Space padding is preserved in the implementation
+        let (cat, act, year, month) = extract_categories(&path, "移動軌跡");
         assert_eq!(cat, "  動力交通工具  ");
         assert_eq!(act, "飛機");
         assert_eq!(year, "2026");
@@ -162,10 +163,10 @@ mod tests {
             "2026".to_string(),
         ];
 
-        let (cat, act, year, month) = extract_categories(&path);
-        // meaningful_path has 4 elements, uses _ pattern (len - 4, len - 3, len - 2, len - 1)
-        // So indices are: (0, 1, 2, 3) = ("移動軌跡", "戶外運動", "步行", "2026")
-        assert_eq!(cat, "移動軌跡");
+        let (cat, act, year, month) = extract_categories(&path, "移動軌跡");
+        // 過濾 "移動軌跡" 後剩 3 個元素: ["戶外運動", "步行", "2026"]
+        // 對應 pattern 3: (None, 0, 1, 2)
+        assert_eq!(cat, "");
         assert_eq!(act, "戶外運動");
         assert_eq!(year, "步行");
         assert_eq!(month, "2026");
@@ -173,10 +174,9 @@ mod tests {
 
     #[test]
     fn test_extract_categories_single_non_root_element() {
-        let path = vec!["2026-03".to_string()]; // Just a month
+        let path = vec!["2026-03".to_string()];
 
-        let (cat, act, year, month) = extract_categories(&path);
-        // extract_single_element checks for '-' pattern
+        let (cat, act, year, month) = extract_categories(&path, "some_file");
         assert_eq!(cat, "");
         assert_eq!(act, "");
         assert_eq!(year, "");
@@ -187,7 +187,7 @@ mod tests {
     fn test_extract_categories_empty_path() {
         let path: Vec<String> = vec![];
 
-        let (cat, act, year, month) = extract_categories(&path);
+        let (cat, act, year, month) = extract_categories(&path, "some_file");
         assert_eq!(cat, "");
         assert_eq!(act, "");
         assert_eq!(year, "");
