@@ -123,76 +123,13 @@ applyTo: "src/**,tests/**,Cargo.toml"
 
 ## 測試規範
 
-### 單元測試
+- **單元測試**：包含於模組內的 `#[cfg(test)]` 區塊（目前 26 個，涵蓋 `path`、`metadata`、`regex`、`error` 四個模組）
+- **集成測試**：放在 `tests/` 目錄下的獨立 Rust 檔案，每個檔案為獨立的 crate
+- **文件測試**：公開 API 應附帶 doc-tests（目前 5 個）
+- **執行測試**：`cargo test`；編譯前應執行 `cargo check` 驗證程式碼無誤
+- **KML/KMZ 驗證**：涉及解析改動時，應使用 `tests/fixtures/` 下的測試夾具驗證
 
-單元測試應直接包含在模組中，使用 `#[cfg(test)]` 區塊：
-
-```rust
-// src/path.rs
-
-pub fn extract_categories(folder_path: &[String]) -> (String, String, String, String) {
-    // ... 實作
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_extract_categories_empty_path() {
-        let path: Vec<String> = vec![];
-        let (cat, act, year, month) = extract_categories(&path);
-        assert_eq!((cat.as_str(), act.as_str(), year.as_str(), month.as_str()), ("", "", "", ""));
-    }
-
-    #[test]
-    fn test_extract_categories_full_path() {
-        let path = vec![
-            "移動軌跡".to_string(), "戶外運動".to_string(),
-            "步行".to_string(), "2026".to_string(), "2026-03".to_string(),
-        ];
-        let (cat, act, year, month) = extract_categories(&path);
-        assert_eq!(cat, "戶外運動");
-        assert_eq!(month, "2026-03");
-    }
-}
-```
-
-### 集成測試
-
-集成測試應放在 `tests/` 目錄下的獨立檔案：
-
-```rust
-// tests/kml_parsing.rs
-
-use movement_tracks_analyzer::extract_placemarks_with_paths;
-use std::path::PathBuf;
-
-#[test]
-fn test_parse_sample_kml() {
-    let path = PathBuf::from("tests/fixtures/tracks.kml");
-    let result = extract_placemarks_with_paths(&path);
-    assert!(result.is_ok());
-    let data = result.unwrap();
-    assert!(!data.is_empty());
-}
-```
-
-### 執行測試
-
-```bash
-# 執行所有測試
-cargo test
-
-# 執行單個測試函數
-cargo test test_calculate_distance
-
-# 執行單個檔案的所有測試
-cargo test --test kml_parsing
-
-# 執行附加詳細輸出
-cargo test -- --nocapture
-```
+> 詳細的測試策略、程式碼範例與命名慣例，請參閱 [`skills/testing/SKILL.md`](../skills/testing/SKILL.md)。
 
 ## 依賴管理
 
