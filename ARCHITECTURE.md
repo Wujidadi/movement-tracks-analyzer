@@ -123,7 +123,7 @@ fn run() -> movement_tracks_analyzer::Result<()> {
 - **職責**：自訂錯誤類型定義
 - **內容**：
     - `AnalyzerError` 枚舉 - 7 種錯誤類型
-    - `Display` trait 實現 - 用戶友好的錯誤訊息
+    - `Display` trait 實現 - 使用者友好的錯誤訊息
     - `Error` trait 實現 - 標準錯誤接口
     - `From` implementations - 自動錯誤轉換
     - `Result<T>` 型態別名 - 便捷的 Result 類型
@@ -135,7 +135,7 @@ fn run() -> movement_tracks_analyzer::Result<()> {
     - `DATETIME_PATTERN` - 日期時間格式常數
     - `START_TIME_PATTERN` - 提取開始時間的正規表達式
     - `END_TIME_PATTERN` - 提取結束時間的正規表達式
-    - `create_time_pattern()` - 參數化生成時間模式的函式
+    - `create_time_pattern()` - 參數化產生時間模式的函式
 
 ### `lib.rs` (49 行)
 

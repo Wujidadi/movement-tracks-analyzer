@@ -125,6 +125,6 @@ Better Highlights 與 SonarQube 的差異：
 
 ---
 
-**生成日期**：2026-03-14  
+**產生日期**：2026-03-14  
 **分析對象**：Better Highlights vs SonarQube 複雜度計算差異  
 **狀態**：基於觀察推測

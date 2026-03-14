@@ -18,7 +18,7 @@
 cargo build --release
 ```
 
-### 運行
+### 執行
 
 ```bash
 # 查看說明
@@ -82,14 +82,14 @@ cargo build --release
 
 ```bash
 ./target/release/movement_tracks_analyzer -f "Movement Tracks.kml" -o file -m json
-# 生成 tracks_output.json
+# 產生 tracks_output.json
 ```
 
 ### 輸出 CSV 檔案（預設）
 
 ```bash
 ./target/release/movement_tracks_analyzer -f "Movement Tracks.kml"
-# 生成 tracks_output.csv
+# 產生 tracks_output.csv
 ```
 
 ### 指定輸出路徑
@@ -97,11 +97,11 @@ cargo build --release
 ```bash
 # 輸出到指定目錄（使用預設檔名）
 ./target/release/movement_tracks_analyzer -o file -m json -x /tmp
-# 生成 /tmp/tracks_output.json
+# 產生 /tmp/tracks_output.json
 
 # 輸出到自訂檔名
 ./target/release/movement_tracks_analyzer -o file -m csv -x /tmp/my_data.csv
-# 生成 /tmp/my_data.csv
+# 產生 /tmp/my_data.csv
 ```
 
 ## 技術細節
