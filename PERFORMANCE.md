@@ -34,14 +34,18 @@
 // 使用 quick-xml 的事件驅動解析
 // 只掃描一次檔案，自動追蹤 Folder 堆棧
 // 邊解析邊處理，無須整個載入到記憶體
-let mut xml_reader = Reader::from_reader(reader);
-loop {
-match xml_reader.read_event_into( & mut buf) {
-Ok(Event::Start(elem)) => { /* 進入元素 */ }
-Ok(Event::Text(text)) => { /* 處理文本 */ }
-Ok(Event::End(elem)) => { /* 離開元素 */ }
-_ => {}
-}
+
+// 事件迴圈拆為 read_all_events() + process_event()，降低認知複雜度
+fn read_all_events<R: BufRead>(xml_reader: &mut Reader<R>, ...) -> Result<()> {
+    let mut buf = Vec::new();
+    loop {
+        match xml_reader.read_event_into(&mut buf) {
+            Ok(Event::Eof) => return Ok(()),
+            Ok(event) => process_event(event, ...)?,
+            Err(e) => { eprintln!("KML parsing error: {}", e); return Ok(()); }
+        }
+        buf.clear();
+    }
 }
 ```
 

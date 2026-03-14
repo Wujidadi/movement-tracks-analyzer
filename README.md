@@ -120,7 +120,7 @@ cargo build --release
 
 ### 程式碼品質
 
-透過狀態機設計、模組化重構等技術，將認知複雜度降低 87%。詳見 [REFACTORING.md](./REFACTORING.md)
+透過 `ActiveTextField` 列舉取代布林旗標、全面函式拆分等技術，大幅壓縮認知複雜度。詳見 [REFACTORING.md](./REFACTORING.md)
 
 採用**自訂錯誤類型**取代 `Box<dyn Error>`，提供類型安全和清晰的錯誤訊息。
 

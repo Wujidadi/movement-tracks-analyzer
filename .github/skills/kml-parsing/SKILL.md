@@ -104,19 +104,10 @@ use std::{
 pub fn extract_placemarks_with_paths(
     file_path: &PathBuf,
 ) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
-    let is_kmz = file_path
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("kmz"));
-
-    if is_kmz {
-        let kml_bytes = extract_kml_from_kmz(file_path)?;
-        let cursor = Cursor::new(kml_bytes);
-        let reader = BufReader::new(cursor);
-        parse_kml_from_reader(reader)
+    if is_kmz_file(file_path) {
+        parse_kmz_file(file_path)
     } else {
-        let file = fs::File::open(file_path)?;
-        let reader = BufReader::new(file);
-        parse_kml_from_reader(reader)
+        parse_kml_file(file_path)
     }
 }
 
@@ -125,62 +116,61 @@ fn extract_kml_from_kmz(file_path: &PathBuf) -> Result<Vec<u8>> {
     let file = fs::File::open(file_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
 
-    // 優先尋找 doc.kml（KMZ 規範的預設主檔案）
-    if let Ok(mut entry) = archive.by_name("doc.kml") {
-        let mut buf = Vec::with_capacity(entry.size() as usize);
-        entry.read_to_end(&mut buf)?;
-        return Ok(buf);
-    }
-
-    // 退而求其次，尋找第一個 .kml 副檔名的檔案
-    for i in 0..archive.len() {
-        let mut entry = archive.by_index(i)?;
-        if entry.name().to_ascii_lowercase().ends_with(".kml") {
-            let mut buf = Vec::with_capacity(entry.size() as usize);
-            entry.read_to_end(&mut buf)?;
-            return Ok(buf);
-        }
-    }
-
-    Err(AnalyzerError::KmzError(
-        "No KML file found in KMZ archive".to_string(),
-    ))
+    // 優先尋找 doc.kml，退而求其次取第一個 .kml 檔案
+    find_doc_kml(&mut archive)
+        .or_else(|| find_first_kml(&mut archive))
+        .ok_or_else(|| AnalyzerError::KmzError("No KML file found in KMZ archive".to_string()))
 }
 
 /// 從實作 BufRead 的來源解析 KML 內容
 fn parse_kml_from_reader<R: BufRead>(reader: R) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
     let mut xml_reader = Reader::from_reader(reader);
-    // ... 原有的 XML 事件迴圈邏輯 ...
+    // ... 初始化狀態 ...
+    read_all_events(&mut xml_reader, &mut folder_stack, &mut state, &mut results)?;
+    Ok(results)
 }
 ```
 
 ### 狀態機設計
 
-解析器使用 `ParserState` 結構體集中管理所有狀態旗標與暫存資料：
+解析器使用 `ActiveTextField` 列舉取代布林旗標，搭配 `ParserState` 結構體管理狀態：
 
 ```rust
+/// 當前活躍的文字欄位（天然互斥，取代 4 個布林旗標）
+#[derive(Debug, Default, PartialEq)]
+enum ActiveTextField {
+    #[default]
+    None,
+    Name,
+    Description,
+    Coordinates,
+    FolderName,
+}
+
 #[derive(Debug, Default)]
 struct ParserState {
     in_placemark: bool,
-    in_name: bool,
-    in_description: bool,
-    in_coordinates: bool,
-    in_folder_name: bool,
+    active_field: ActiveTextField,
     current_name: String,
     current_description: String,
     current_coordinates_str: String,
 }
 
 impl ParserState {
-    fn reset_placemark(&mut self) { /* 清除暫存欄位 */ }
-    fn append_text(&mut self, content: &str, folder_stack: &mut Vec<String>) { /* 依狀態分派文字 */ }
+    fn reset_placemark(&mut self) { /* 清除暫存欄位，重設 active_field = None */ }
+    fn enter_placemark(&mut self) { /* in_placemark = true + reset */ }
+    fn open_content_tag(&mut self, tag_name: &str, folder_stack: &[String]) { /* 設定活躍欄位 */ }
+    fn close_content_tag(&mut self) { /* active_field = None */ }
+    fn append_text(&mut self, content: &str, folder_stack: &mut Vec<String>) { /* 依 active_field 分派 */ }
+    fn handle_cdata(&mut self, content: &str) { /* 僅在 Description 時追加 */ }
 }
 ```
 
-- `ParserState`：集中管理所有解析狀態（布林旗標 + 暫存字串）
+- `ActiveTextField` 列舉：天然互斥，消除不一致狀態組合
 - `folder_stack`：追蹤當前 Folder 層級，用於提取分類路徑
 - `handle_start_tag()` / `handle_end_tag()`：獨立函式處理 XML 標籤開閉事件
-- `buf`：XML 事件緩衝區（提高效能）
+- `read_all_events()` → `process_event()`：事件迴圈與事件處理分離
+- `finalize_placemark()`：Placemark 完成後建立 `TrackMetadata`
 
 ---
 
@@ -198,17 +188,20 @@ fn parse_coordinates(coords_str: &str) -> Result<Vec<(f64, f64)>> {
     Ok(coords_str
         .trim()
         .split_whitespace()
-        .filter_map(|coord_str| {
-            let parts: Vec<&str> = coord_str.split(',').collect();
-            if parts.len() >= 2 {
-                let lon = parts[0].parse().ok()?;
-                let lat = parts[1].parse().ok()?;
-                Some((lon, lat))
-            } else {
-                None
-            }
-        })
+        .filter_map(parse_single_coordinate)
         .collect())
+}
+
+/// 解析單個座標字串
+fn parse_single_coordinate(coord_str: &str) -> Option<(f64, f64)> {
+    let parts: Vec<&str> = coord_str.split(',').collect();
+    if parts.len() >= 2 {
+        let lon = parts[0].parse().ok()?;
+        let lat = parts[1].parse().ok()?;
+        Some((lon, lat))
+    } else {
+        None
+    }
 }
 ```
 
@@ -228,17 +221,16 @@ use regex::Regex;
 
 const DATETIME_PATTERN: &str = r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})";
 
-fn create_time_pattern(label: &str, has_br: bool) -> String {
-    let br = if has_br { r"<br />" } else { "" };
-    format!(r"<b>\s*{}\s*:\s*</b>\s*{}{}", label, DATETIME_PATTERN, br)
+fn create_time_pattern(label: &str, suffix: &str) -> String {
+    format!(r"<b>\s*{}\s*:\s*</b>\s*{}{}", label, DATETIME_PATTERN, suffix)
 }
 
 pub static START_TIME_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(&create_time_pattern("Start", true)).unwrap()
+    Regex::new(&create_time_pattern("Start", r"<br />")).unwrap()
 });
 
 pub static END_TIME_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(&create_time_pattern("End", false)).unwrap()
+    Regex::new(&create_time_pattern("End", "")).unwrap()
 });
 ```
 
@@ -296,28 +288,13 @@ pub struct TrackMetadata {
 }
 
 impl TrackMetadata {
-    /// 使用半正矢（Haversine）公式計算軌跡總距離（公尺）
+    /// 使用 windows(2) 迭代器搭配半正矢公式計算軌跡總距離（公尺）
     pub fn calculate_distance(&self) -> f64 {
-        const EARTH_RADIUS_KM: f64 = 6371.0;
-        let mut total_distance = 0.0;
-
-        for i in 0..self.coordinates.len() - 1 {
-            let (lon1, lat1) = self.coordinates[i];
-            let (lon2, lat2) = self.coordinates[i + 1];
-
-            let lat1_rad = lat1.to_radians();
-            let lat2_rad = lat2.to_radians();
-            let delta_lat = (lat2 - lat1).to_radians();
-            let delta_lon = (lon2 - lon1).to_radians();
-
-            let a = (delta_lat / 2.0).sin().powi(2)
-                + lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
-            let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
-
-            total_distance += EARTH_RADIUS_KM * c;
-        }
-
-        total_distance * 1000.0 // 轉換為公尺
+        self.coordinates
+            .windows(2)
+            .map(|pair| haversine_distance_km(pair[0], pair[1]))
+            .sum::<f64>()
+            * 1000.0 // 轉換為公尺
     }
 
     /// 計算軌跡持續時間（秒）
@@ -326,6 +303,12 @@ impl TrackMetadata {
             .signed_duration_since(self.start_time)
             .num_seconds()
     }
+}
+
+/// 使用半正矢（Haversine）公式計算地球表面上兩點間的大圓距離（公里）
+fn haversine_distance_km(point1: (f64, f64), point2: (f64, f64)) -> f64 {
+    const EARTH_RADIUS_KM: f64 = 6371.0;
+    // ... Haversine 公式實作 ...
 }
 ```
 
@@ -338,16 +321,23 @@ impl TrackMetadata {
 
 /// 從 KML 資料夾路徑中提取軌跡分類資訊
 pub fn extract_categories(folder_path: &[String]) -> (String, String, String, String) {
-    let meaningful_path: Vec<&String> = folder_path
+    let meaningful_path = filter_meaningful_path(folder_path);
+    categorize_by_depth(&meaningful_path)
+}
+
+fn filter_meaningful_path(folder_path: &[String]) -> Vec<&String> {
+    folder_path
         .iter()
         .filter(|name| !name.contains("(Example)") && !name.contains("Movement Tracks"))
-        .collect();
+        .collect()
+}
 
+fn categorize_by_depth(meaningful_path: &[&String]) -> (String, String, String, String) {
     match meaningful_path.len() {
-        0 => (String::new(), String::new(), String::new(), String::new()),
-        1 => extract_single_element(&meaningful_path),
-        2 => create_category_tuple(None, None, Some(0), Some(1), &meaningful_path),
-        3 => create_category_tuple(None, Some(0), Some(1), Some(2), &meaningful_path),
+        0 => empty_tuple(),
+        1 => classify_single_element(meaningful_path[0]),
+        2 => create_category_tuple(None, None, Some(0), Some(1), meaningful_path),
+        3 => create_category_tuple(None, Some(0), Some(1), Some(2), meaningful_path),
         _ => { /* 使用最後四個元素 */ }
     }
 }
@@ -502,29 +492,35 @@ pub struct TrackMetadata {
 }
 ```
 
-### 步驟 2：在 ParserState 中新增暫存欄位（parser.rs）
+### 步驟 2：在 ActiveTextField 列舉中新增變體（parser.rs）
 
 ```rust
-#[derive(Debug, Default)]
-struct ParserState {
-    // ...既有欄位...
-    in_new_element: bool,
-    current_new_data: String,
+#[derive(Debug, Default, PartialEq)]
+enum ActiveTextField {
+    #[default]
+    None,
+    Name,
+    Description,
+    Coordinates,
+    FolderName,
+    NewElement,  // 新增
 }
 ```
 
-### 步驟 3：在 handle_start_tag / handle_end_tag 中處理新標籤
+### 步驟 3：在 open_content_tag / handle_start_tag 中處理新標籤
 
 ```rust
-fn handle_start_tag(tag_name: &str, folder_stack: &mut Vec<String>, state: &mut ParserState) {
-    match tag_name {
+// 在 ParserState::open_placemark_tag() 中新增匹配
+fn open_placemark_tag(&mut self, tag_name: &str) {
+    self.active_field = match tag_name {
         // ...既有匹配...
-        "NewElement" if state.in_placemark => {
-            state.in_new_element = true;
-        }
-        _ => {}
-    }
+        "NewElement" => ActiveTextField::NewElement,
+        _ => return,
+    };
 }
+
+// 在 handle_start_tag() 中若新標籤非 name/description/coordinates，
+// 需新增獨立的 match arm
 ```
 
 ### 步驟 4：更新 lib.rs 導出（若為公開 API）

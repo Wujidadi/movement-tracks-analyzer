@@ -11,21 +11,27 @@ const DEFAULT_FILENAMES: &[&str] = &[
 
 /// 解析 KML/KMZ 檔案路徑
 pub fn resolve_kml_file(cli_file: Option<PathBuf>) -> Result<PathBuf> {
-    // 檢查命令行參數
     if let Some(path) = cli_file {
-        if path.exists() {
-            println!("Using file from command line: {}", path.display());
-            return Ok(path);
-        }
-        return Err(format!("File not found: {}", path.display()).into());
+        return resolve_cli_file(path);
     }
+    find_default_kml_file()
+}
 
-    // 檢查執行檔所在目錄
+/// 解析命令列指定的檔案路徑
+fn resolve_cli_file(path: PathBuf) -> Result<PathBuf> {
+    if path.exists() {
+        println!("Using file from command line: {}", path.display());
+        Ok(path)
+    } else {
+        Err(format!("File not found: {}", path.display()).into())
+    }
+}
+
+/// 從預設目錄中尋找 KML/KMZ 檔案
+fn find_default_kml_file() -> Result<PathBuf> {
     if let Some(path) = check_exe_directory() {
         return Ok(path);
     }
-
-    // 檢查當前工作目錄
     check_current_directory()
 }
 

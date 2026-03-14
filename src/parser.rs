@@ -71,20 +71,33 @@ fn extract_times(description: &str) -> Option<(NaiveDateTime, NaiveDateTime)> {
 pub fn extract_placemarks_with_paths(
     file_path: &PathBuf,
 ) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
-    let is_kmz = file_path
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("kmz"));
-
-    if is_kmz {
-        let kml_bytes = extract_kml_from_kmz(file_path)?;
-        let cursor = Cursor::new(kml_bytes);
-        let reader = BufReader::new(cursor);
-        parse_kml_from_reader(reader)
+    if is_kmz_file(file_path) {
+        parse_kmz_file(file_path)
     } else {
-        let file = fs::File::open(file_path)?;
-        let reader = BufReader::new(file);
-        parse_kml_from_reader(reader)
+        parse_kml_file(file_path)
     }
+}
+
+/// 判斷檔案是否為 KMZ 格式
+fn is_kmz_file(file_path: &PathBuf) -> bool {
+    file_path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("kmz"))
+}
+
+/// 解析 KMZ 檔案
+fn parse_kmz_file(file_path: &PathBuf) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let kml_bytes = extract_kml_from_kmz(file_path)?;
+    let cursor = Cursor::new(kml_bytes);
+    let reader = BufReader::new(cursor);
+    parse_kml_from_reader(reader)
+}
+
+/// 解析 KML 檔案
+fn parse_kml_file(file_path: &PathBuf) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let file = fs::File::open(file_path)?;
+    let reader = BufReader::new(file);
+    parse_kml_from_reader(reader)
 }
 
 /// 從 KMZ（ZIP）檔案中提取第一個 KML 檔案的內容
@@ -94,139 +107,199 @@ fn extract_kml_from_kmz(file_path: &PathBuf) -> Result<Vec<u8>> {
     let file = fs::File::open(file_path)?;
     let mut archive = zip::ZipArchive::new(file)?;
 
-    // 優先尋找 doc.kml（KMZ 規範的預設主檔案）
-    if let Ok(mut entry) = archive.by_name("doc.kml") {
-        let mut buf = Vec::with_capacity(entry.size() as usize);
-        entry.read_to_end(&mut buf)?;
-        return Ok(buf);
-    }
-
-    // 退而求其次，尋找第一個 .kml 副檔名的檔案
-    for i in 0..archive.len() {
-        let mut entry = archive.by_index(i)?;
-        if entry.name().to_ascii_lowercase().ends_with(".kml") {
-            let mut buf = Vec::with_capacity(entry.size() as usize);
-            entry.read_to_end(&mut buf)?;
-            return Ok(buf);
-        }
-    }
-
-    Err(AnalyzerError::KmzError(
-        "No KML file found in KMZ archive".to_string(),
-    ))
+    find_doc_kml(&mut archive)
+        .or_else(|| find_first_kml(&mut archive))
+        .ok_or_else(|| AnalyzerError::KmzError("No KML file found in KMZ archive".to_string()))
 }
 
-/// 從實作 BufRead 的來源解析 KML 內容
-fn parse_kml_from_reader<R: BufRead>(reader: R) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
-    let mut xml_reader = Reader::from_reader(reader);
+/// 從 KMZ 壓縮檔中讀取 doc.kml（KMZ 規範的預設主檔案）
+fn find_doc_kml(archive: &mut zip::ZipArchive<fs::File>) -> Option<Vec<u8>> {
+    let mut entry = archive.by_name("doc.kml").ok()?;
+    let mut buf = Vec::with_capacity(entry.size() as usize);
+    entry.read_to_end(&mut buf).ok()?;
+    Some(buf)
+}
 
-    let mut results = Vec::new();
-    let mut buf = Vec::new();
-    let mut folder_stack: Vec<String> = Vec::new();
-    let mut parser_state = ParserState::default();
+/// 從 KMZ 壓縮檔中尋找第一個 .kml 副檔名的檔案
+fn find_first_kml(archive: &mut zip::ZipArchive<fs::File>) -> Option<Vec<u8>> {
+    let len = archive.len();
+    (0..len).find_map(|i| try_read_kml_entry(archive, i))
+}
 
-    loop {
-        match xml_reader.read_event_into(&mut buf) {
-            Ok(Event::Start(elem)) => {
-                let tag_name = String::from_utf8_lossy(elem.name().as_ref()).to_string();
-                handle_start_tag(&tag_name, &mut folder_stack, &mut parser_state);
-            }
-            Ok(Event::End(elem)) => {
-                let tag_name = String::from_utf8_lossy(elem.name().as_ref()).to_string();
-                handle_end_tag(
-                    &tag_name,
-                    &mut folder_stack,
-                    &mut parser_state,
-                    &mut results,
-                )?;
-            }
-            Ok(Event::Text(text)) => {
-                let content = String::from_utf8_lossy(text.as_ref()).to_string();
-                parser_state.append_text(&content, &mut folder_stack);
-            }
-            Ok(Event::CData(cdata)) => {
-                let content = String::from_utf8_lossy(cdata.as_ref()).to_string();
-                if parser_state.in_description {
-                    parser_state.current_description.push_str(&content);
-                }
-            }
-            Ok(Event::Eof) => break,
-            Err(e) => {
-                eprintln!("KML parsing error: {}", e);
-                break;
-            }
-            _ => {}
-        }
-        buf.clear();
+/// 嘗試讀取 KMZ 中指定索引的 KML 條目
+fn try_read_kml_entry(archive: &mut zip::ZipArchive<fs::File>, index: usize) -> Option<Vec<u8>> {
+    let mut entry = archive.by_index(index).ok()?;
+    if !entry.name().to_ascii_lowercase().ends_with(".kml") {
+        return None;
     }
+    let mut buf = Vec::with_capacity(entry.size() as usize);
+    entry.read_to_end(&mut buf).ok()?;
+    Some(buf)
+}
 
-    Ok(results)
+/// 當前活躍的文字欄位
+#[derive(Debug, Default, PartialEq)]
+enum ActiveTextField {
+    #[default]
+    None,
+    /// Placemark 名稱
+    Name,
+    /// Placemark 描述
+    Description,
+    /// Placemark 座標
+    Coordinates,
+    /// 資料夾名稱
+    FolderName,
 }
 
 /// 解析器狀態機
 #[derive(Debug, Default)]
 struct ParserState {
     in_placemark: bool,
-    in_name: bool,
-    in_description: bool,
-    in_coordinates: bool,
-    in_folder_name: bool,
+    active_field: ActiveTextField,
     current_name: String,
     current_description: String,
     current_coordinates_str: String,
 }
 
 impl ParserState {
+    /// 重設 Placemark 相關狀態
     fn reset_placemark(&mut self) {
         self.current_name.clear();
         self.current_description.clear();
         self.current_coordinates_str.clear();
-        self.in_name = false;
-        self.in_description = false;
-        self.in_coordinates = false;
+        self.active_field = ActiveTextField::None;
     }
 
-    fn append_text(&mut self, content: &str, folder_stack: &mut Vec<String>) {
-        if self.in_name {
-            self.current_name.push_str(content);
-        } else if self.in_description {
-            self.current_description.push_str(content);
-        } else if self.in_coordinates {
-            self.current_coordinates_str.push_str(content);
-        } else if self.in_folder_name {
-            if let Some(last) = folder_stack.last_mut() {
-                last.push_str(content);
-            }
+    /// 進入 Placemark
+    fn enter_placemark(&mut self) {
+        self.in_placemark = true;
+        self.reset_placemark();
+    }
+
+    /// 處理內容標籤（name/description/coordinates）的開啟
+    fn open_content_tag(&mut self, tag_name: &str, folder_stack: &[String]) {
+        if self.in_placemark {
+            self.open_placemark_tag(tag_name);
+        } else if tag_name == "name" && self.is_at_unnamed_folder(folder_stack) {
+            self.active_field = ActiveTextField::FolderName;
         }
     }
+
+    /// 設定 Placemark 內的活躍文字欄位
+    fn open_placemark_tag(&mut self, tag_name: &str) {
+        self.active_field = match tag_name {
+            "name" => ActiveTextField::Name,
+            "description" => ActiveTextField::Description,
+            "coordinates" => ActiveTextField::Coordinates,
+            _ => return,
+        };
+    }
+
+    /// 判斷當前是否處於未命名的資料夾
+    fn is_at_unnamed_folder(&self, folder_stack: &[String]) -> bool {
+        folder_stack.last().is_some_and(|s| s.is_empty())
+    }
+
+    /// 關閉當前活躍的文字欄位
+    fn close_content_tag(&mut self) {
+        self.active_field = ActiveTextField::None;
+    }
+
+    /// 追加文字到當前活躍欄位
+    fn append_text(&mut self, content: &str, folder_stack: &mut Vec<String>) {
+        match self.active_field {
+            ActiveTextField::Name => self.current_name.push_str(content),
+            ActiveTextField::Description => self.current_description.push_str(content),
+            ActiveTextField::Coordinates => self.current_coordinates_str.push_str(content),
+            ActiveTextField::FolderName => append_to_folder_name(folder_stack, content),
+            ActiveTextField::None => {}
+        }
+    }
+
+    /// 處理 CData 內容（僅在描述欄位中有效）
+    fn handle_cdata(&mut self, content: &str) {
+        if self.active_field == ActiveTextField::Description {
+            self.current_description.push_str(content);
+        }
+    }
+}
+
+/// 追加文字到資料夾堆疊頂端的名稱
+fn append_to_folder_name(folder_stack: &mut Vec<String>, content: &str) {
+    if let Some(last) = folder_stack.last_mut() {
+        last.push_str(content);
+    }
+}
+
+/// 從實作 BufRead 的來源解析 KML 內容
+fn parse_kml_from_reader<R: BufRead>(reader: R) -> Result<Vec<(Vec<String>, TrackMetadata)>> {
+    let mut xml_reader = Reader::from_reader(reader);
+    let mut results = Vec::new();
+    let mut folder_stack: Vec<String> = Vec::new();
+    let mut state = ParserState::default();
+
+    read_all_events(&mut xml_reader, &mut folder_stack, &mut state, &mut results)?;
+
+    Ok(results)
+}
+
+/// 讀取並處理所有 XML 事件
+fn read_all_events<R: BufRead>(
+    xml_reader: &mut Reader<R>,
+    folder_stack: &mut Vec<String>,
+    state: &mut ParserState,
+    results: &mut Vec<(Vec<String>, TrackMetadata)>,
+) -> Result<()> {
+    let mut buf = Vec::new();
+    loop {
+        match xml_reader.read_event_into(&mut buf) {
+            Ok(Event::Eof) => return Ok(()),
+            Ok(event) => process_event(event, folder_stack, state, results)?,
+            Err(e) => {
+                eprintln!("KML parsing error: {}", e);
+                return Ok(());
+            }
+        }
+        buf.clear();
+    }
+}
+
+/// 處理單個 XML 事件
+fn process_event(
+    event: Event<'_>,
+    folder_stack: &mut Vec<String>,
+    state: &mut ParserState,
+    results: &mut Vec<(Vec<String>, TrackMetadata)>,
+) -> Result<()> {
+    match event {
+        Event::Start(elem) => {
+            let tag = String::from_utf8_lossy(elem.name().as_ref()).to_string();
+            handle_start_tag(&tag, folder_stack, state);
+        }
+        Event::End(elem) => {
+            let tag = String::from_utf8_lossy(elem.name().as_ref()).to_string();
+            handle_end_tag(&tag, folder_stack, state, results)?;
+        }
+        Event::Text(text) => {
+            let content = String::from_utf8_lossy(text.as_ref()).to_string();
+            state.append_text(&content, folder_stack);
+        }
+        Event::CData(cdata) => {
+            let content = String::from_utf8_lossy(cdata.as_ref()).to_string();
+            state.handle_cdata(&content);
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// 處理 XML 開始標籤
 fn handle_start_tag(tag_name: &str, folder_stack: &mut Vec<String>, state: &mut ParserState) {
     match tag_name {
-        "Folder" => {
-            folder_stack.push(String::new());
-        }
-        "Placemark" => {
-            state.in_placemark = true;
-            state.reset_placemark();
-        }
-        "name" if state.in_placemark => {
-            state.in_name = true;
-        }
-        "description" if state.in_placemark => {
-            state.in_description = true;
-        }
-        "coordinates" if state.in_placemark => {
-            state.in_coordinates = true;
-        }
-        "name"
-            if !state.in_placemark
-                && !folder_stack.is_empty()
-                && folder_stack.last().map_or(false, |s| s.is_empty()) =>
-        {
-            state.in_folder_name = true;
-        }
+        "Folder" => folder_stack.push(String::new()),
+        "Placemark" => state.enter_placemark(),
+        "name" | "description" | "coordinates" => state.open_content_tag(tag_name, folder_stack),
         _ => {}
     }
 }
@@ -240,43 +313,38 @@ fn handle_end_tag(
 ) -> Result<()> {
     match tag_name {
         "Folder" => {
-            if !folder_stack.is_empty() {
-                folder_stack.pop();
-            }
+            folder_stack.pop();
         }
-        "Placemark" => {
-            state.in_placemark = false;
-            if let Some((start_time, end_time)) = extract_times(&state.current_description) {
-                let coordinates = parse_coordinates(&state.current_coordinates_str)?;
-                let (category, activity, year, month) = extract_categories(folder_stack);
-
-                let metadata = TrackMetadata {
-                    name: state.current_name.clone(),
-                    start_time,
-                    end_time,
-                    coordinates,
-                    category,
-                    activity,
-                    year,
-                    month,
-                };
-
-                results.push((folder_stack.clone(), metadata));
-            }
-        }
-        "name" if state.in_name => {
-            state.in_name = false;
-        }
-        "description" if state.in_description => {
-            state.in_description = false;
-        }
-        "coordinates" if state.in_coordinates => {
-            state.in_coordinates = false;
-        }
-        "name" if state.in_folder_name => {
-            state.in_folder_name = false;
-        }
+        "Placemark" => finalize_placemark(state, folder_stack, results)?,
+        "name" | "description" | "coordinates" => state.close_content_tag(),
         _ => {}
+    }
+    Ok(())
+}
+
+/// 完成 Placemark 解析，建立 TrackMetadata 並加入結果
+fn finalize_placemark(
+    state: &mut ParserState,
+    folder_stack: &[String],
+    results: &mut Vec<(Vec<String>, TrackMetadata)>,
+) -> Result<()> {
+    state.in_placemark = false;
+    if let Some((start_time, end_time)) = extract_times(&state.current_description) {
+        let coordinates = parse_coordinates(&state.current_coordinates_str)?;
+        let (category, activity, year, month) = extract_categories(folder_stack);
+
+        let metadata = TrackMetadata {
+            name: state.current_name.clone(),
+            start_time,
+            end_time,
+            coordinates,
+            category,
+            activity,
+            year,
+            month,
+        };
+
+        results.push((folder_stack.to_vec(), metadata));
     }
     Ok(())
 }
@@ -286,15 +354,18 @@ fn parse_coordinates(coords_str: &str) -> Result<Vec<(f64, f64)>> {
     Ok(coords_str
         .trim()
         .split_whitespace()
-        .filter_map(|coord_str| {
-            let parts: Vec<&str> = coord_str.split(',').collect();
-            if parts.len() >= 2 {
-                let lon = parts[0].parse().ok()?;
-                let lat = parts[1].parse().ok()?;
-                Some((lon, lat))
-            } else {
-                None
-            }
-        })
+        .filter_map(parse_single_coordinate)
         .collect())
+}
+
+/// 解析單個座標字串
+fn parse_single_coordinate(coord_str: &str) -> Option<(f64, f64)> {
+    let parts: Vec<&str> = coord_str.split(',').collect();
+    if parts.len() >= 2 {
+        let lon = parts[0].parse().ok()?;
+        let lat = parts[1].parse().ok()?;
+        Some((lon, lat))
+    } else {
+        None
+    }
 }

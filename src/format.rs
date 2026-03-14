@@ -5,6 +5,20 @@ use unicode_width::UnicodeWidthStr;
 /// 時間格式化字串常數
 const TIME_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
+/// 表格標題
+const TABLE_HEADERS: [&str; 10] = [
+    "Name",
+    "Start",
+    "End",
+    "Duration (s)",
+    "Distance (m)",
+    "Points",
+    "Category",
+    "Activity",
+    "Year",
+    "Month",
+];
+
 #[derive(Debug, Clone, Copy)]
 pub enum OutputFormat {
     Json,
@@ -96,58 +110,61 @@ fn format_timestamp(metadata: &TrackMetadata) -> (String, String) {
 
 /// 輸出 CSV 格式
 fn format_csv(tracks: &[(Vec<String>, TrackMetadata)]) -> String {
-    let mut output = String::from(
-        "Name,Start,End,Duration (seconds),Distance (meters),Points,Category,Activity,Year,Month\n",
-    );
+    let header =
+        "Name,Start,End,Duration (seconds),Distance (meters),Points,Category,Activity,Year,Month\n";
+    let rows: String = tracks
+        .iter()
+        .map(|(_, metadata)| format_csv_row(metadata))
+        .collect();
+    format!("{}{}", header, rows)
+}
 
-    for (_folder_path, metadata) in tracks {
-        let (duration, distance) = calculate_metrics(metadata);
-        let (start_time, end_time) = format_timestamp(metadata);
-
-        output.push_str(&format!(
-            "\"{}\",{},{},{},{},{},{},{},{},{}\n",
-            metadata.name.replace("\"", "\"\""),
-            start_time,
-            end_time,
-            duration,
-            distance,
-            metadata.coordinates.len(),
-            metadata.category,
-            metadata.activity,
-            metadata.year,
-            metadata.month
-        ));
-    }
-
-    output
+/// 格式化單筆 CSV 資料列
+fn format_csv_row(metadata: &TrackMetadata) -> String {
+    let (duration, distance) = calculate_metrics(metadata);
+    let (start_time, end_time) = format_timestamp(metadata);
+    format!(
+        "\"{}\",{},{},{},{},{},{},{},{},{}\n",
+        metadata.name.replace("\"", "\"\""),
+        start_time,
+        end_time,
+        duration,
+        distance,
+        metadata.coordinates.len(),
+        metadata.category,
+        metadata.activity,
+        metadata.year,
+        metadata.month
+    )
 }
 
 /// 輸出 TSV 格式
 fn format_tsv(tracks: &[(Vec<String>, TrackMetadata)]) -> String {
-    let mut output = String::from(
-        "Name\tStart\tEnd\tDuration (seconds)\tDistance (meters)\tPoints\tCategory\tActivity\tYear\tMonth\n"
-    );
+    let header = "Name\tStart\tEnd\tDuration (seconds)\tDistance (meters)\tPoints\tCategory\tActivity\tYear\tMonth\n";
+    let rows: String = tracks
+        .iter()
+        .map(|(_, metadata)| format_tsv_row(metadata))
+        .collect();
+    format!("{}{}", header, rows)
+}
 
-    for (_folder_path, metadata) in tracks {
-        let (duration, distance) = calculate_metrics(metadata);
-        let (start_time, end_time) = format_timestamp(metadata);
-
-        output.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-            metadata.name,
-            start_time,
-            end_time,
-            duration,
-            distance,
-            metadata.coordinates.len(),
-            metadata.category,
-            metadata.activity,
-            metadata.year,
-            metadata.month
-        ));
-    }
-
-    output
+/// 格式化單筆 TSV 資料列
+fn format_tsv_row(metadata: &TrackMetadata) -> String {
+    let (duration, distance) = calculate_metrics(metadata);
+    let (start_time, end_time) = format_timestamp(metadata);
+    format!(
+        "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+        metadata.name,
+        start_time,
+        end_time,
+        duration,
+        distance,
+        metadata.coordinates.len(),
+        metadata.category,
+        metadata.activity,
+        metadata.year,
+        metadata.month
+    )
 }
 
 /// 輸出 JSON 格式
@@ -180,46 +197,49 @@ fn format_json(tracks: &[(Vec<String>, TrackMetadata)]) -> String {
 fn format_table(tracks: &[(Vec<String>, TrackMetadata)]) -> String {
     let widths = calculate_column_widths(tracks);
     let mut output = String::new();
+    format_header_row(&mut output, &widths);
+    format_separator_row(&mut output, &widths);
+    format_data_rows(&mut output, tracks, &widths);
+    output
+}
 
-    // 標題列
-    let headers = [
-        "Name",
-        "Start",
-        "End",
-        "Duration (s)",
-        "Distance (m)",
-        "Points",
-        "Category",
-        "Activity",
-        "Year",
-        "Month",
-    ];
-
-    for (i, header) in headers.iter().enumerate() {
+/// 格式化表格標題列
+fn format_header_row(output: &mut String, widths: &[usize; 10]) {
+    for (i, header) in TABLE_HEADERS.iter().enumerate() {
         output.push_str(&format_cell(header, widths[i], i));
         output.push(' ');
     }
     output.push('\n');
+}
 
-    // 分隔線
-    for width in &widths {
+/// 格式化表格分隔線
+fn format_separator_row(output: &mut String, widths: &[usize; 10]) {
+    for width in widths {
         output.push_str(&"-".repeat(*width));
         output.push(' ');
     }
     output.push('\n');
+}
 
-    // 資料列
+/// 格式化表格資料列
+fn format_data_rows(
+    output: &mut String,
+    tracks: &[(Vec<String>, TrackMetadata)],
+    widths: &[usize; 10],
+) {
     for (_folder_path, metadata) in tracks {
-        let row_data = format_row_data(metadata);
-
-        for (i, data) in row_data.iter().enumerate() {
-            output.push_str(&format_cell(data, widths[i], i));
-            output.push(' ');
-        }
-        output.push('\n');
+        format_single_data_row(output, metadata, widths);
     }
+}
 
-    output
+/// 格式化單筆表格資料列
+fn format_single_data_row(output: &mut String, metadata: &TrackMetadata, widths: &[usize; 10]) {
+    let row_data = format_row_data(metadata);
+    for (i, data) in row_data.iter().enumerate() {
+        output.push_str(&format_cell(data, widths[i], i));
+        output.push(' ');
+    }
+    output.push('\n');
 }
 
 /// 計算字串顯示寬度（考慮 Unicode 寬字元）
@@ -229,45 +249,42 @@ fn display_width(s: &str) -> usize {
 
 /// 計算欄寬（用於表格輸出）
 fn calculate_column_widths(tracks: &[(Vec<String>, TrackMetadata)]) -> [usize; 10] {
-    let headers = [
-        "Name",
-        "Start",
-        "End",
-        "Duration (s)",
-        "Distance (m)",
-        "Points",
-        "Category",
-        "Activity",
-        "Year",
-        "Month",
-    ];
-
-    let mut widths: [usize; 10] = headers.map(display_width);
-
+    let mut widths: [usize; 10] = TABLE_HEADERS.map(display_width);
     for (_folder_path, metadata) in tracks {
-        let values = format_row_data(metadata);
-        for (i, value) in values.iter().enumerate() {
-            widths[i] = widths[i].max(display_width(value));
-        }
+        update_widths_from_row(&mut widths, metadata);
     }
-
     widths
+}
+
+/// 根據資料列更新各欄位寬度
+fn update_widths_from_row(widths: &mut [usize; 10], metadata: &TrackMetadata) {
+    let values = format_row_data(metadata);
+    for (i, value) in values.iter().enumerate() {
+        widths[i] = widths[i].max(display_width(value));
+    }
+}
+
+/// 判斷是否為數值欄位（靠右對齊）
+fn is_right_aligned_column(col_index: usize) -> bool {
+    matches!(col_index, 3 | 4 | 5)
 }
 
 /// 根據顯示寬度格式化字串
 fn format_cell(text: &str, width: usize, col_index: usize) -> String {
     let text_width = display_width(text);
     if text_width >= width {
-        text.to_string()
+        return text.to_string();
+    }
+    pad_text(text, width - text_width, is_right_aligned_column(col_index))
+}
+
+/// 依據對齊方式填充文字
+fn pad_text(text: &str, padding_size: usize, right_align: bool) -> String {
+    let padding = " ".repeat(padding_size);
+    if right_align {
+        format!("{}{}", padding, text)
     } else {
-        let padding = width - text_width;
-        // 數字欄位（Duration, Distance, Points）靠右對齊
-        if col_index == 3 || col_index == 4 || col_index == 5 {
-            format!("{}{}", " ".repeat(padding), text)
-        } else {
-            // 其他欄位靠左對齊
-            format!("{}{}", text, " ".repeat(padding))
-        }
+        format!("{}{}", text, padding)
     }
 }
 

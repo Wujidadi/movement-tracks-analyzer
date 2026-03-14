@@ -31,7 +31,7 @@ applyTo: "src/**,tests/**,Cargo.toml"
 │   ├── output.rs                  # 輸出結果（shell / file）與檔案路徑判定
 │   ├── error.rs                   # 自訂錯誤類型（AnalyzerError 枚舉 + Result<T> 別名）
 │   ├── regex.rs                   # 正規表示式模式集中定義
-│   ├── parser.rs                  # 流式 XML 解析（狀態機），支援 KML 與 KMZ，避免全檔案載入記憶體
+│   ├── parser.rs                  # 流式 XML 解析（ActiveTextField 列舉 + 狀態機），支援 KML 與 KMZ
 │   ├── path.rs                    # GPS 軌跡路徑提取與分類邏輯
 │   ├── metadata.rs                # 軌跡詮釋資料結構（TrackMetadata）
 │   └── format.rs                  # 輸出格式化（JSON、CSV、TSV、表格）
@@ -95,9 +95,14 @@ applyTo: "src/**,tests/**,Cargo.toml"
 
 ### 修改 KML/KMZ 解析邏輯
 
-1. 若修改狀態機流程或副檔名判斷邏輯，編輯 `src/parser.rs`（包含 `extract_placemarks_with_paths()`、`extract_kml_from_kmz()`、`parse_kml_from_reader()`）
-2. 若修改軌跡計算（距離、時間等），編輯 `src/metadata.rs`
-3. 若修改路徑提取與分類邏輯，編輯 `src/path.rs`
+1. 若修改狀態機流程，編輯 `src/parser.rs`：
+    - 主入口：`extract_placemarks_with_paths()` → `parse_kmz_file()` / `parse_kml_file()`
+    - KMZ 提取：`extract_kml_from_kmz()` → `find_doc_kml()` / `find_first_kml()`
+    - XML 事件迴圈：`parse_kml_from_reader()` → `read_all_events()` → `process_event()`
+    - 標籤處理：`handle_start_tag()` / `handle_end_tag()` → `finalize_placemark()`
+    - 狀態管理：`ParserState` 使用 `ActiveTextField` 列舉（`None`/`Name`/`Description`/`Coordinates`/`FolderName`）管理當前活躍欄位
+2. 若修改軌跡計算（距離、時間等），編輯 `src/metadata.rs`（距離計算使用 `haversine_distance_km()` + `windows(2)` 迭代器）
+3. 若修改路徑提取與分類邏輯，編輯 `src/path.rs`（`extract_categories()` → `filter_meaningful_path()` → `categorize_by_depth()`）
 4. 若修改資料結構，更新 `src/metadata.rs`
 5. 使用 `tests/fixtures/tracks.kml`、`tests/fixtures/tracks.kmz` 等驗證
 
@@ -107,7 +112,7 @@ applyTo: "src/**,tests/**,Cargo.toml"
 
 1. 在 `src/format.rs` 中的 `OutputFormat` 枚舉添加新變體，並添加格式化函數
 2. 在 `src/cli.rs` 中的 `OutputFormatArg` 枚舉添加對應的 CLI 變體
-3. 在 `src/converter.rs` 中映射新格式（`OutputFormatArg` → `OutputFormat`）
+3. 在 `src/converter.rs` 中的 `map_output_format()` 函式映射新格式（`OutputFormatArg` → `OutputFormat`）
 4. 編寫測試驗證輸出
 
 ### 改進效能

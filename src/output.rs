@@ -1,5 +1,5 @@
 use crate::config::{Config, OutputType};
-use movement_tracks_analyzer::{OutputFormat, Result, TrackMetadata};
+use movement_tracks_analyzer::{format_output, OutputFormat, Result, TrackMetadata};
 use std::{
     fs::File,
     io::Write,
@@ -8,25 +8,24 @@ use std::{
 
 /// 輸出結果
 pub fn output_results(placemarks: &[(Vec<String>, TrackMetadata)], config: &Config) -> Result<()> {
-    use movement_tracks_analyzer::format_output;
-
     let output = format_output(config.format, placemarks);
+    dispatch_output(&output, config)
+}
 
+/// 依輸出目標分派結果
+fn dispatch_output(output: &str, config: &Config) -> Result<()> {
     match config.output_type {
         OutputType::Shell => {
             print!("{}", output);
+            Ok(())
         }
-        OutputType::File => {
-            save_to_file(&output, config.format, config.export_path.as_deref())?;
-        }
+        OutputType::File => save_to_file(output, config.format, config.export_path.as_deref()),
     }
-
-    Ok(())
 }
 
 /// 儲存輸出到檔案
 fn save_to_file(output: &str, format: OutputFormat, export_path: Option<&Path>) -> Result<()> {
-    let file_path = determine_file_path(export_path, format)?;
+    let file_path = determine_file_path(export_path, format);
 
     let mut file = File::create(&file_path)?;
     file.write_all(output.as_bytes())?;
@@ -38,24 +37,22 @@ fn save_to_file(output: &str, format: OutputFormat, export_path: Option<&Path>) 
 /// 確定輸出檔案路徑
 ///
 /// 支援：
-/// 1. 目錄路徑 → 使用預設檔名 (e.g., `/tmp` → `/tmp/tracks_output.csv`)
-/// 2. 完整檔案路徑 → 直接使用 (e.g., `/tmp/data.csv` → `/tmp/data.csv`)
-fn determine_file_path(export_path: Option<&Path>, format: OutputFormat) -> Result<PathBuf> {
-    match export_path {
-        None => {
-            // 未指定路徑，輸出到當前目錄
-            Ok(get_default_filename(format))
-        }
-        Some(path) => {
-            // 檢查路徑是否已包含檔名（判斷依據：是否有副檔名）
-            if has_file_extension(path) {
-                // 用戶指定了完整檔案路徑，直接使用
-                Ok(path.to_path_buf())
-            } else {
-                // 用戶指定了目錄，附加預設檔名
-                Ok(path.join(get_default_filename(format)))
-            }
-        }
+/// 1. 未指定路徑 → 使用當前目錄預設檔名
+/// 2. 目錄路徑 → 使用預設檔名 (e.g., `/tmp` → `/tmp/tracks_output.csv`)
+/// 3. 完整檔案路徑 → 直接使用 (e.g., `/tmp/data.csv` → `/tmp/data.csv`)
+fn determine_file_path(export_path: Option<&Path>, format: OutputFormat) -> PathBuf {
+    let Some(path) = export_path else {
+        return get_default_filename(format);
+    };
+    resolve_export_path(path, format)
+}
+
+/// 解析使用者指定的匯出路徑
+fn resolve_export_path(path: &Path, format: OutputFormat) -> PathBuf {
+    if has_file_extension(path) {
+        path.to_path_buf()
+    } else {
+        path.join(get_default_filename(format))
     }
 }
 

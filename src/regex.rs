@@ -3,17 +3,16 @@ use regex::Regex;
 
 const DATETIME_PATTERN: &str = r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})";
 
-fn create_time_pattern(label: &str, has_br: bool) -> String {
-    let br = if has_br { r"<br />" } else { "" };
-    format!(r"<b>\s*{}\s*:\s*</b>\s*{}{}", label, DATETIME_PATTERN, br)
+fn create_time_pattern(label: &str, suffix: &str) -> String {
+    format!(r"<b>\s*{}\s*:\s*</b>\s*{}{}", label, DATETIME_PATTERN, suffix)
 }
 
 pub static START_TIME_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(&create_time_pattern("Start", true)).unwrap()
+    Regex::new(&create_time_pattern("Start", r"<br />")).unwrap()
 });
 
 pub static END_TIME_PATTERN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(&create_time_pattern("End", false)).unwrap()
+    Regex::new(&create_time_pattern("End", "")).unwrap()
 });
 
 #[cfg(test)]

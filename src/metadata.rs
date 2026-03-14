@@ -66,26 +66,11 @@ impl TrackMetadata {
     /// - 地球半徑：6371 km
     /// - 精度：適合一般 GPS 應用（誤差 < 1%）
     pub fn calculate_distance(&self) -> f64 {
-        const EARTH_RADIUS_KM: f64 = 6371.0;
-        let mut total_distance = 0.0;
-
-        for i in 0..self.coordinates.len() - 1 {
-            let (lon1, lat1) = self.coordinates[i];
-            let (lon2, lat2) = self.coordinates[i + 1];
-
-            let lat1_rad = lat1.to_radians();
-            let lat2_rad = lat2.to_radians();
-            let delta_lat = (lat2 - lat1).to_radians();
-            let delta_lon = (lon2 - lon1).to_radians();
-
-            let a = (delta_lat / 2.0).sin().powi(2)
-                + lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
-            let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
-
-            total_distance += EARTH_RADIUS_KM * c;
-        }
-
-        total_distance * 1000.0 // 轉換為公尺
+        self.coordinates
+            .windows(2)
+            .map(|pair| haversine_distance_km(pair[0], pair[1]))
+            .sum::<f64>()
+            * 1000.0 // 轉換為公尺
     }
 
     /// 計算軌跡持續時間（秒）
@@ -106,6 +91,27 @@ impl TrackMetadata {
     }
 }
 
+/// 使用半正矢（Haversine）公式計算地球表面上兩點間的大圓距離（公里）
+///
+/// - 地球半徑：6371 km
+/// - 精度：適合一般 GPS 應用（誤差 < 1%）
+fn haversine_distance_km(point1: (f64, f64), point2: (f64, f64)) -> f64 {
+    const EARTH_RADIUS_KM: f64 = 6371.0;
+    let (lon1, lat1) = point1;
+    let (lon2, lat2) = point2;
+
+    let lat1_rad = lat1.to_radians();
+    let lat2_rad = lat2.to_radians();
+    let delta_lat = (lat2 - lat1).to_radians();
+    let delta_lon = (lon2 - lon1).to_radians();
+
+    let a = (delta_lat / 2.0).sin().powi(2)
+        + lat1_rad.cos() * lat2_rad.cos() * (delta_lon / 2.0).sin().powi(2);
+    let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
+
+    EARTH_RADIUS_KM * c
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,11 +124,7 @@ mod tests {
                 .unwrap(),
             end_time: NaiveDateTime::parse_from_str("2026-03-11 11:30:00", "%Y-%m-%d %H:%M:%S")
                 .unwrap(),
-            coordinates: vec![
-                (120.5, 24.7),
-                (120.51, 24.71),
-                (120.52, 24.72),
-            ],
+            coordinates: vec![(120.5, 24.7), (120.51, 24.71), (120.52, 24.72)],
             category: "戶外運動".to_string(),
             activity: "步行".to_string(),
             year: "2026".to_string(),

@@ -37,16 +37,25 @@
 /// assert_eq!(month, "2026-03");
 /// ```
 pub fn extract_categories(folder_path: &[String]) -> (String, String, String, String) {
-    let meaningful_path: Vec<&String> = folder_path
+    let meaningful_path = filter_meaningful_path(folder_path);
+    categorize_by_depth(&meaningful_path)
+}
+
+/// 過濾掉非有效分類的路徑元素
+fn filter_meaningful_path(folder_path: &[String]) -> Vec<&String> {
+    folder_path
         .iter()
         .filter(|name| !name.contains("(Example)") && !name.contains("Movement Tracks"))
-        .collect();
+        .collect()
+}
 
+/// 根據路徑深度建立分類元組
+fn categorize_by_depth(meaningful_path: &[&String]) -> (String, String, String, String) {
     match meaningful_path.len() {
         0 => empty_tuple(),
-        1 => extract_single_element(&meaningful_path),
-        2 => create_category_tuple(None, None, Some(0), Some(1), &meaningful_path),
-        3 => create_category_tuple(None, Some(0), Some(1), Some(2), &meaningful_path),
+        1 => classify_single_element(meaningful_path[0]),
+        2 => create_category_tuple(None, None, Some(0), Some(1), meaningful_path),
+        3 => create_category_tuple(None, Some(0), Some(1), Some(2), meaningful_path),
         _ => {
             let len = meaningful_path.len();
             create_category_tuple(
@@ -54,7 +63,7 @@ pub fn extract_categories(folder_path: &[String]) -> (String, String, String, St
                 Some(len - 3),
                 Some(len - 2),
                 Some(len - 1),
-                &meaningful_path,
+                meaningful_path,
             )
         }
     }
@@ -81,10 +90,14 @@ fn empty_tuple() -> (String, String, String, String) {
     (String::new(), String::new(), String::new(), String::new())
 }
 
-/// 提取單個路徑元素（判斷是年份還是月份）
-fn extract_single_element(path: &[&String]) -> (String, String, String, String) {
-    let elem = path[0];
-    if elem.contains('-') && elem.len() == 7 {
+/// 判斷字串是否為月份格式（YYYY-MM）
+fn is_month_format(s: &str) -> bool {
+    s.contains('-') && s.len() == 7
+}
+
+/// 分類單個路徑元素（判斷是年份還是月份）
+fn classify_single_element(elem: &str) -> (String, String, String, String) {
+    if is_month_format(elem) {
         (
             String::new(),
             String::new(),
