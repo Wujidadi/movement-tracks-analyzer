@@ -1,33 +1,32 @@
-# Copilot 協作指引
+# Agent 全域協作指引與約束
 
 > [!IMPORTANT]
-> **語言規則（最高優先，無例外）：所有回應、說明、文件、工具呼叫的 explanation 欄位，一律使用繁體中文（台灣），並採用台灣標準翻譯和慣用術語。無論處理任何技術問題，此規則不得被覆蓋或忽略。回應文字中不得夾雜日語、韓語或其他非中文詞彙（包含感嘆句、慣用語）。**
+> **最高優先規則：語言與術語強制規範**
+> 所有回應、註解、文件、修改說明與工具呼叫的 explanation 欄位，一律使用**繁體中文（台灣）**與台灣軟體業界慣用語。嚴禁夾雜簡體中文、日韓文或其他語言詞彙。
+>
+> **強制替換詞彙對照（不可違背）：**
+> - 程式碼 (而非代码)、專案 (而非项目)、記憶體 (而非内存)
+> - 變數 (而非变量)、函式 (而非函数)、回傳 (而非返回)、呼叫 (而非调用)
+> - 預設 (而非默认)、效能 (而非性能)、最佳化 (而非优化)
+> - 檔案 (而非文件)、資料夾 (而非文件夹)、字串 (而非字符串)
+> - 支援 (而非支持)、介面 (而非接口)、解析度 (而非分辨率)
+> - 對齊 (而非对齐、對齐)、產生 (而非生成)
 
-本文件為 GitHub Copilot 的協作指引入口。**處理任何需求前，請先讀取 `AGENTS.md`，再按需讀取 `instructions/` 子文件。**
+## 專案概覽
+Movement Tracks Analyzer 是一個 **GPS 軌跡解析工具** (Rust 2024 Edition)。
+核心功能：透過流式解析 KML/KMZ 檔案，提取軌跡名稱、時間、距離、座標與分類，並支援多種輸出格式（JSON, CSV, TSV, Table）。
+限制：目前解析 KMZ 檔案時，僅處理壓縮檔內的第一個 KML 內容（優先尋找 `doc.kml`）。
 
-> **重要提示**：根目錄的 `AGENTS.md` 是 `.github/AGENTS.md` 的符號連結（Symbolic Link）。修改時應直接編輯 `.github/AGENTS.md`，**勿直接修改根目錄版本**。
+## 強制行為準則 (Negative Prompts)
+1. **最小修改原則**：針對需求進行最小必要修改，嚴禁引入無關的重構、重命名或大範圍搬移。
+2. **禁止過度推斷**：修改前必須先檢索上下文，不得憑空臆測模組架構或業務邏輯。
+3. **維持既有架構**：優先沿用現有工具與實踐，禁止任意升級依賴版本或引入新框架。
+4. **禁止終端機雷區**：嚴禁在 CLI 提供 `heredoc` 語法 (如 `cat << 'EOF'`)，改用建立暫存檔或 `echo` 多次寫入。
+5. **禁止版控污染**：任務完成報告或除錯日誌不可加入版控 (Commit)，應於結束後拋棄。
 
-## 全域最高優先規則
-
-1. **繁體中文**：所有回應與文件一律使用台灣繁體中文，用語參照 [`language.instructions.md`](instructions/language.instructions.md)。
-2. **最小修改**：實作以最小必要修改為原則，不引入無關重構或大範圍搬移。
-3. **先蒐集再行動**：修改前應先蒐集需求相關上下文，不得臆測模組位置或業務邏輯。
-4. **沿用既有模式**：優先沿用既有架構、工具與實踐，不任意引入衝突的框架或重寫方案。
-
-## 文件導覽
-
-| 文件                                                                             | 用途                                    |
-| -------------------------------------------------------------------------------- | --------------------------------------- |
-| [`AGENTS.md`](AGENTS.md)                                                         | 行為準則、專案概覽、文件規範與禁止事項  |
-| [`instructions/rust.instructions.md`](instructions/rust.instructions.md)         | Rust 架構、模組風格、修改入口與測試規範 |
-| [`instructions/language.instructions.md`](instructions/language.instructions.md) | 繁體中文（台灣）用語對照標準            |
-
-## Agent Skills
-
-以下技能模組存放於 `.github/skills/`，由 Agent 在偵測到對應任務意圖時**自動**載入：
-
-| 技能模組                                                             | 觸發情境                             |
-| -------------------------------------------------------------------- | ------------------------------------ |
-| [`skills/testing/SKILL.md`](skills/testing/SKILL.md)                 | 撰寫、執行或討論單元與集成測試       |
-| [`skills/cli-development/SKILL.md`](skills/cli-development/SKILL.md) | 開發命令行界面、參數解析或使用者互動 |
-| [`skills/kml-parsing/SKILL.md`](skills/kml-parsing/SKILL.md)         | 實作或改進 KML/KMZ 檔案解析邏輯      |
+## 技能模組路由 (Skill Routing)
+當偵測到以下任務意圖時，Agent 必須主動讀取對應的知識庫檔案：
+- **架構與開發**：讀取 `.github/instructions/rust.instructions.md`
+- **測試撰寫與執行**：讀取 `.github/skills/testing/SKILL.md`
+- **CLI 開發與參數**：讀取 `.github/skills/cli-development/SKILL.md`
+- **KML/KMZ 解析邏輯**：讀取 `.github/skills/kml-parsing/SKILL.md`
