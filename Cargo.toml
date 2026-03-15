@@ -11,10 +11,6 @@ path = "src/lib.rs"
 name = "movement_tracks_analyzer"
 path = "src/main.rs"
 
-[[bin]]
-name = "cognitive_complexity_analyzer"
-path = "tools/cognitive_complexity_analyzer.rs"
-
 [dependencies]
 chrono = "0.4"
 clap = { version = "4.6", features = ["derive"] }
