@@ -200,6 +200,11 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,windows,macos,linux,jetbrains+all,visualstudiocode
 
+### SonarQube
+
+sonar-project.properties
+.scannerwork
+
 ### Custom
 
 # KML / KMZ files (exclude all)
